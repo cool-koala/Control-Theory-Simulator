@@ -23,9 +23,12 @@ const ActivityIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0
         const SettingsIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>);
         const InfoIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
         const ZapIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>);
-        const GitHubIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.66.5 12.02c0 5.09 3.29 9.4 7.86 10.92.58.11.79-.25.79-.56 0-.27-.01-1.18-.02-2.14-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.05-.71.08-.69.08-.69 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.97.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.69 0-1.26.45-2.3 1.19-3.12-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.19 1.19a10.94 10.94 0 0 1 5.8 0c2.21-1.5 3.18-1.19 3.18-1.19.63 1.59.24 2.76.12 3.05.74.82 1.19 1.86 1.19 3.12 0 4.42-2.69 5.4-5.25 5.68.41.36.78 1.06.78 2.14 0 1.55-.01 2.79-.01 3.17 0 .31.21.68.8.56A11.53 11.53 0 0 0 23.5 12C23.5 5.66 18.35.5 12 .5Z"></path></svg>);
+const GitHubIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.66.5 12.02c0 5.09 3.29 9.4 7.86 10.92.58.11.79-.25.79-.56 0-.27-.01-1.18-.02-2.14-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.05-.71.08-.69.08-.69 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.97.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.69 0-1.26.45-2.3 1.19-3.12-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.19 1.19a10.94 10.94 0 0 1 5.8 0c2.21-1.5 3.18-1.19 3.18-1.19.63 1.59.24 2.76.12 3.05.74.82 1.19 1.86 1.19 3.12 0 4.42-2.69 5.4-5.25 5.68.41.36.78 1.06.78 2.14 0 1.55-.01 2.79-.01 3.17 0 .31.21.68.8.56A11.53 11.53 0 0 0 23.5 12C23.5 5.66 18.35.5 12 .5Z"></path></svg>);
 
 const REPOSITORY_URL = 'https://github.com/cool-koala/Control-Theory-Simulator';
+const STAR_URL = `${REPOSITORY_URL}/stargazers`;
+const FORK_URL = `${REPOSITORY_URL}/fork`;
+const ISSUES_URL = `${REPOSITORY_URL}/issues`;
 
 export default function ControlSimulator() {
             const [running, setRunning] = useState(false);
@@ -1040,6 +1043,32 @@ export default function ControlSimulator() {
                             <span className="mt-2 text-sm font-extrabold">{t.communityCta}</span>
                             <span className="mt-1 text-xs font-medium text-emerald-700/80">{t.communityButtonHint}</span>
                         </a>
+                        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                            <a
+                                href={STAR_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-full border border-emerald-300 bg-white/90 px-3 py-1.5 text-xs font-extrabold text-emerald-800 transition-all hover:border-emerald-500 hover:bg-white"
+                            >
+                                {t.starRepo}
+                            </a>
+                            <a
+                                href={FORK_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-full border border-emerald-300 bg-white/90 px-3 py-1.5 text-xs font-extrabold text-emerald-800 transition-all hover:border-emerald-500 hover:bg-white"
+                            >
+                                {t.forkRepo}
+                            </a>
+                            <a
+                                href={ISSUES_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-full border border-emerald-300 bg-white/90 px-3 py-1.5 text-xs font-extrabold text-emerald-800 transition-all hover:border-emerald-500 hover:bg-white"
+                            >
+                                {t.openIssues}
+                            </a>
+                        </div>
                     </div>
 
                     <div className="flex min-h-0 flex-1 gap-4 overflow-hidden">
