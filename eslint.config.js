@@ -5,7 +5,7 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist/**', 'coverage/**', 'legacy/**']
+    ignores: ['dist/**', 'coverage/**', 'legacy/**', '**/*.timestamp-*.mjs']
   },
   js.configs.recommended,
   {

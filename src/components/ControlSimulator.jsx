@@ -989,8 +989,9 @@ export default function ControlSimulator() {
                             <ActivityIcon size={24} />
                         </div>
                         <div>
-                            <h1 className="text-xl font-extrabold text-teal-900 tracking-tight drop-shadow-sm">Control Theory Simulator</h1>
+                            <h1 className="text-xl font-extrabold text-teal-900 tracking-tight drop-shadow-sm">{t.appTitle}</h1>
                             <p className="text-xs text-teal-700/80 font-medium tracking-wide">{t.appSubtitle}</p>
+                            <p className="mt-1 max-w-[520px] text-[11px] font-medium leading-relaxed text-teal-800/85">{t.appSlogan}</p>
                         </div>
                     </div>
                     
@@ -1021,8 +1022,15 @@ export default function ControlSimulator() {
                 </header>
 
                 {/* 围绕式三栏主布局 */}
-                <div className="flex flex-1 overflow-hidden p-4 gap-4">
-                    
+                <div className="flex flex-1 flex-col overflow-hidden p-4 gap-4">
+                    <div className="glass-panel flex items-center justify-between rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-50/90 via-white/80 to-teal-50/90 px-4 py-3 shadow-sm">
+                        <p className="pr-4 text-sm font-semibold leading-relaxed text-emerald-900">{t.communityBanner}</p>
+                        <span className="shrink-0 rounded-full border border-emerald-300 bg-emerald-500 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-white">
+                            {t.communityCta}
+                        </span>
+                    </div>
+
+                    <div className="flex min-h-0 flex-1 gap-4 overflow-hidden">
                     {/* 左侧栏: 控制器参数与架构解析 */}
                     <div className="w-[340px] flex flex-col gap-4 overflow-y-auto tech-scroll shrink-0 pb-10">
                         {/* 算法解说区 */}
@@ -1247,6 +1255,7 @@ export default function ControlSimulator() {
                             </div>
                         </div>
 
+                    </div>
                     </div>
                 </div>
                 </div>
