@@ -1,0 +1,1369 @@
+const { useState, useEffect, useRef } = React;
+
+        const PlayIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>);
+        const PauseIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>);
+        const RefreshCwIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>);
+        const ActivityIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
+        const SettingsIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>);
+        const InfoIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
+        const ZapIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>);
+
+        const DT = 0.02; 
+        const INITIAL_PARAMS = { m: 2.0, k: 1.0, c: 0.5, target: 5.0 };
+
+        // ==========================================
+        // 核心控制器配置字典 (修正与重构版)
+        // ==========================================
+        const CONTROLLER_CONFIGS = {
+            // === 【1. 经典线性体系】 ===
+            'OpenLoop': { category: '01. 经典线性体系', name: '开环前馈 (Open Loop)', desc: '无反馈，遇干扰即失效。', eq: 'u = k · r', tuning: '完全依赖对环境弹簧系数(K)的预判，一旦参数摄动或有扰动，必然产生静差。', params: { u_static: [5.0, 0, 50, 0.1] } },
+            'P': { category: '01. 经典线性体系', name: 'P控制 (比例)', desc: '输出与误差成正比，存在稳态误差。', eq: 'u = K_p · e', tuning: 'Kp调大能加快收敛，但由于系统缺乏阻尼会造成严重超调，永远无法彻底消除弹簧拉力带来的静差。', params: { kp: [40, 0, 100, 1] } },
+            'PI': { category: '01. 经典线性体系', name: 'PI控制 (比例-积分)', desc: '消除稳态误差，但增加超调。', eq: 'u = K_p · e + K_i ∫e dt', tuning: 'Ki从极小值开始加。Ki过大将导致系统积累过多能量，引起长时间的低频震荡（积分饱和）。', params: { kp: [30, 0, 100, 1], ki: [5, 0, 50, 0.1] } },
+            'PD': { category: '01. 经典线性体系', name: 'PD控制 (比例-微分)', desc: '微分相当于电子阻尼，减少超调。', eq: 'u = K_p · e - K_d · v', tuning: '大幅增加Kd能提供强大的“电子阻尼”有效抑制超调。缺点是现实中会放大高频噪声。', params: { kp: [40, 0, 100, 1], kd: [10, 0, 50, 0.1] } },
+            'PID': { category: '01. 经典线性体系', name: 'PID控制 (比例-积分-微分)', desc: '工业万金油，综合快、准、稳。', eq: 'u = K_p · e + K_i ∫e dt - K_d · v', tuning: '先提Kp让系统动起来，再加Kd把震荡压平，最后补微小Ki消除贴不到目标的稳态静差。', params: { kp: [40, 0, 100, 1], ki: [10, 0, 50, 0.1], kd: [20, 0, 50, 0.1] } },
+            'IPD': { category: '01. 经典线性体系', name: 'I-PD (微分先行PID)', desc: 'P和D仅作用于状态，避免指令突变冲击。', eq: 'u = K_i ∫e dt - K_p · x - K_d · v', tuning: 'Kp不作用于目标偏差，系统对目标阶跃的初始响应会变平缓，适合限制加速度的机械结构。', params: { kp: [40, 0, 100, 1], ki: [10, 0, 50, 0.1], kd: [20, 0, 50, 0.1] } },
+            '2DOF-PID': { category: '01. 经典线性体系', name: '二自由度 PID', desc: '前馈系数独立优化跟踪能力，削弱超调。', eq: 'u = K_p(b·r - x) + K_i ∫e dt - K_d · v', tuning: '微调前置权重b(0.3~0.8)。调小b能在不影响抗干扰能力的前提下，大幅削弱阶跃指令超调。', params: { kp: [40, 0, 100, 1], ki: [10, 0, 50, 0.1], kd: [20, 0, 50, 0.1], b: [0.5, 0, 1, 0.05] } },
+            'IncPID': { category: '01. 经典线性体系', name: '增量式 PID', desc: '自带抗积分饱和特性。', eq: 'Δu = K_p Δe + K_i e + K_d Δ²e', tuning: '注意！增量式PID的参数量级通常远小于位置式。Ki主导稳态速度，Kp负责抗瞬态扰动。适合高频定周期采样环境。', params: { kp: [10, 0, 100, 1], ki: [0.5, 0, 10, 0.01], kd: [5, 0, 50, 0.1] } },
+            'PI-D': { category: '01. 经典线性体系', name: 'PI-D 控制', desc: 'D仅作用于反馈测量避免突变，P和I作用于误差。', eq: 'u = K_p e + K_i ∫e - K_d v', tuning: '比标准 PID 更柔和的指令跟踪。适合防止启动时 D 项对指令跳变产生的求导尖峰刺透执行器。', params: { kp: [40, 0, 100, 1], ki: [10, 0, 50, 0.1], kd: [20, 0, 50, 0.1] } },
+            'Nested-PID': { category: '01. 经典线性体系', name: '串级 PID (Nested PID)', desc: '外环控位置算基准速度，内环控速度算最终推力。', eq: 'v_d = P(r-x); u = P(v_d-v) + I∫', tuning: '无人机/机械臂必用。内环 Kp_in 必须调得极其刚猛以压制速度，外环 Kp_out 只需温柔给令。', params: { kp_out: [5, 0.1, 20, 0.1], kp_in: [30, 1, 100, 1], ki_in: [10, 0, 50, 0.1] } },
+
+            // === 【2. 频域与最优理论】 ===
+            'PolePlacement': { category: '02. 频域与最优理论', name: '极点配置 (状态反馈)', desc: '将闭环极点配置到期望位置。', eq: 'u = -K₁ x - K₂ v + (K₁+k) r', tuning: '极点 p1, p2 设为正数。值越大闭环极点越深埋左半平面，收敛极快但极易导致执行器饱和。', params: { p1: [2, 0.1, 10, 0.1], p2: [3, 0.1, 10, 0.1] } },
+            'LQR': { category: '02. 频域与最优理论', name: 'LQR (线性二次型最优)', desc: '最小化状态偏差和能量消耗代价函数。', eq: 'u = -K_{lqr} [x-r, v]^T', tuning: 'Q_x惩罚位置误差，R_weight惩罚能量消耗。因缺乏积分项，在带弹簧系统中必然存在静差。', params: { q_x: [100, 1, 500, 1], q_v: [10, 0.1, 50, 0.1], r_weight: [1, 0.1, 20, 0.1] } },
+            'LQG': { category: '02. 频域与最优理论', name: 'LQG (包含卡尔曼滤波)', desc: '在测量噪声中利用卡尔曼滤波器提取最佳状态反馈。', eq: 'u = -K_{lqr} [x̂-r, v̂]^T \\ (x̂ 由卡尔曼估计)', tuning: '通过拉高 Q_x/R_w 提高跟踪精度，代价是会让执行器更敏感地响应滤波残留带来的高频颤振。', params: { q_x: [100, 1, 500, 1], q_v: [10, 0.1, 50, 0.1], r_w: [1, 0.1, 20, 0.1] } },
+            'LQR-I': { category: '02. 频域与最优理论', name: '带积分 LQR (LQI)', desc: '最正宗的无静差状态反馈，将状态扩维加入积分误差向量。', eq: 'u = -K [x, v, ∫e]^T', tuning: 'Q_i 就是对稳态不完美度的惩罚！只要你不瞎调，它就是完美抗衡一切常量扰动和偏置的最优解法。', params: { q_x: [100, 1, 500, 1], q_v: [10, 0.1, 50, 0.1], q_i: [500, 10, 2000, 10] } },
+            'MPC': { category: '02. 频域与最优理论', name: 'MPC (模型预测控制)', desc: '预测未来系统轨迹并在线优化求解。', eq: 'u = argmin_{u} [ (x_{pred}-r)^2 + λu^2 ]', tuning: 't_pred为预测视野，较短系统偏激进；Lambda为控制成本惩罚，调大会让控制力更加丝滑。', params: { t_pred: [0.5, 0.05, 2.0, 0.05], lambda: [0.01, 0.001, 1, 0.001] } },
+            'Deadbeat': { category: '02. 频域与最优理论', name: '无差拍控制 (Deadbeat)', desc: '极点配置在Z域原点，试图最少步数内消除误差。', eq: 'u = (m/T²)K·e - (m/T+c)K·v + k·x', tuning: '理论可在2拍内归零。离散化中kp_scale过高极易因为步长当场发散爆炸，建议维持 0.5。', params: { kp_scale: [0.5, 0.1, 2.0, 0.1] } },
+            'H-Infinity': { category: '02. 频域与最优理论', name: 'H-∞ 鲁棒状态反馈', desc: '基于黎卡提方程设计，最小化无穷范数抑制干扰。', eq: 'u = P_{22} e - P_{12} v \\ (P 由 H_∞解出)', tuning: 'Gamma是干扰抑制上界。逼近临界值能获得地狱级鲁棒性，通过Q_x加强性能。', params: { gamma: [2.0, 1.1, 10, 0.1], q_x: [100, 10, 500, 10] } },
+            'QFT-LeadLag': { category: '02. 频域与最优理论', name: 'QFT / 超前-滞后补偿', desc: '定量反馈设计，提升系统频域相位裕度。', eq: 'C(s) = K_{gain} (s+z) / (s+p)', tuning: '配置 Zero < Pole 以实现超前补偿(相当于频域D项)，Gain控制总带宽。频域教徒的最爱。', params: { gain: [50, 1, 100, 1], zero: [2.0, 0.1, 10, 0.1], pole: [20, 1, 50, 1] } },
+            'IMP-Servo': { category: '02. 频域与最优理论', name: '内模原理伺服控制 (IMP)', desc: '增广方程引入指令积分，保证绝对无静差跟踪。', eq: 'u = -K_x x - K_v v + K_i ∫e dt + k·r', tuning: '弥补了LQR无法消除静差的遗憾。拉高 Q_e 像利剑一样劈开静差，但易引起初始大幅超调。', params: { q_e: [1000, 10, 2000, 10], q_x: [50, 1, 100, 1], r_u: [1, 0.1, 20, 0.1] } },
+            'Preview': { category: '02. 频域与最优理论', name: '预见控制 (Preview Control)', desc: '利用未来已知目标，提前动作。', eq: 'u = K_p e - K_d v + K_{prev} ∑ γ^i r(t+i)', tuning: '当目标点是定值时效果类似增强前馈。K_prev越大，系统在到达目标前就越会“提前蓄力”。', params: { kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1], k_prev: [0.3, 0.01, 2.0, 0.01] } },
+
+            // === 【3. 非线性结构控制】 ===
+            'BangBang': { category: '03. 非线性结构控制', name: 'Bang-Bang 控制', desc: '极粗暴双位控制，产生极限环震荡。', eq: 'u = F_{max} · sgn(e)', tuning: 'Force必须远大于稳态拉力。必然产生极限环震荡，调大force只会让它震得更猛烈。', params: { force: [20, 0, 200, 1] } },
+            'BangBang-Zone': { category: '03. 非线性结构控制', name: '死区比例 BangBang', desc: '远端全开，进入设定区域后平滑切换为比例控制防震。', eq: 'u = F_{max} (|e|>Z) | K_p e (|e|<Z)', tuning: 'Zone 必须包住 P控制 能吃住的最大超调。完美衔接了非线性的快与线性的稳。', params: { force: [50, 10, 200, 1], zone: [0.5, 0.1, 2.0, 0.1], kp: [40, 1, 100, 1] } },
+            'Relay': { category: '03. 非线性结构控制', name: '滞回继电控制 (Relay)', desc: '引入死区滞回区间，消除高频抖振。', eq: 'u = F_{max} (|e| > d) 带滞回', tuning: 'Deadzone（死区）设定了你能容忍的稳态静差。进了这个区间控制就“躺平”，消除了颤振。', params: { force: [20, 10, 200, 1], deadzone: [0.1, 0.01, 1, 0.01] } },
+            'TimeOptimal': { category: '03. 非线性结构控制', name: '时间最优相平面法', desc: '利用相平面切换曲线。', eq: 'u = F_{max} · sgn(e - v|v|/(2a_{max}))', tuning: '算法依据物理方程在“全速推进”和“全速刹车”间寻找唯一的完美切换点，原点处引入线性过渡防溢出。', params: { force: [20, 10, 200, 1] } },
+            'FeedbackLin': { category: '03. 非线性结构控制', name: '反馈线性化 (计算力矩)', desc: '抵消不利动态，嵌入期望阻尼响应。', eq: 'u = m(K_p e - K_d v) + cv + kx', tuning: 'Kp决定目标追击烈度。为了保证绝不超调的临界阻尼特性，Kd 必须设定为 2 * sqrt(Kp)。', params: { kp: [25, 1, 100, 1], kd: [10, 0.1, 50, 0.1] } },
+            'Backstepping': { category: '03. 非线性结构控制', name: '反步法 (Backstepping)', desc: '构造李雅普诺夫虚拟控制律，全局稳定。', eq: 'u = m(-z_1 - c_2 z_2 + c_1 v) + kx + cv', tuning: 'c1决定子系统收敛速度，c2决定实际控制侧响应。两者最好协同放大，若差距过大易造成脱节。', params: { c1: [5, 0.1, 20, 0.1], c2: [5, 0.1, 20, 0.1] } },
+            'DSC': { category: '03. 非线性结构控制', name: '动态面控制 (DSC)', desc: '一阶低通虚拟面滤波器解决“微分爆炸”。', eq: 'τ ż + z = α₁ ;  u = m(ż - c_2 s_2 - s_1) + kx + cv', tuning: 'Tau为虚拟面滤波时间常数，取极小(0.01~0.05)。过大会导致滤波面严重滞后引发跟踪超调。', params: { c1: [5, 0.1, 20, 0.1], c2: [5, 0.1, 20, 0.1], tau: [0.05, 0.01, 0.5, 0.01] } },
+            'TDC': { category: '03. 非线性结构控制', name: '时间延迟控制 (TDC)', desc: '利用极小时间延迟数据抵消未知动态。', eq: 'u(t) = u(t-dt) + m(a_{des} - a(t-dt))', tuning: '暴力而有效。M_nom 最好保持在真实值的 0.5倍~2倍 之间，否则前馈抵消彻底失效引发崩溃。', params: { m_nom: [2.0, 0.5, 10, 0.1], kp: [25, 1, 100, 1], kd: [10, 0.1, 50, 0.1] } },
+            'NDC': { category: '03. 非线性结构控制', name: '非线性阻尼控制 (NDC)', desc: '注入非线性阻尼项 e²v，大误差大阻尼。', eq: 'u = K_p e - K_d v - K_{nd} e^2 v', tuning: 'K_nd 控制非线性阻尼。大位移时阻尼狂飙按住超调，逼近目标阻尼归零保障高敏捷。极其实用。', params: { kp: [40, 1, 100, 1], kd: [10, 0, 50, 0.1], k_nd: [5, 0, 50, 0.1] } },
+            'CFTC': { category: '03. 非线性结构控制', name: '连续有限时间控制 (CFTC)', desc: '连续分数次幂反馈，严格有限时间内到达0。', eq: 'u = K_p |e|^α sgn(e) - K_d |v|^β sgn(v) + kr', tuning: 'Alpha越小收敛越绝对，但过小(如<0.5)在离散机系上原点极易产生无穷大导数从而震荡或崩溃。', params: { kp: [30, 1, 100, 1], kd: [15, 1, 50, 1], alpha: [0.8, 0.1, 0.99, 0.01] } },
+
+            // === 【4. 滑模变结构家族】 ===
+            'SMC': { category: '04. 滑模变结构家族', name: '传统滑模控制 (SMC)', desc: '严格等效控制结合切换项。绝对鲁棒，但有高频抖振。', eq: 'u = u_{eq} + K_{gain} sat(s/ε)', tuning: 'K_gain只需稍大于未知扰动。Epsilon边界层放宽能抹平控制力的高频抖振，但会带来微小静差。', params: { c_surface: [5, 0.1, 20, 0.1], k_gain: [10, 1, 100, 1], eps: [0.1, 0.01, 2, 0.01] } },
+            'VSC-RL': { category: '04. 滑模变结构家族', name: '指数趋近律滑模', desc: '配置滑动面指数导数，平滑到达相。', eq: 'u = u_{eq} + m(ε sgn(s) + K_{rl} s)', tuning: 'K_rl 主导远端指数逼近速度，Eps 主导近端匀速穿刺滑模面。巧妙组合两者能让到达轨迹极速且平滑。', params: { c_surface: [5, 0.1, 20, 0.1], eps: [5, 0.1, 50, 0.1], k_rl: [10, 0.1, 50, 0.1] } },
+            'ISMC': { category: '04. 滑模变结构家族', name: '积分滑模控制 (ISMC)', desc: '引入积分项消除到达相，全程鲁棒。', eq: 'u = kx + cv + K_{gain} sat(s/ε) \\ (s含积分)', tuning: '自带积分项，无论初始多偏系统都在滑动面上，全程免疫匹配扰动。C1/C2决定收敛特质。', params: { c1: [5, 0.1, 20, 0.1], c2: [5, 0.1, 20, 0.1], k_gain: [20, 1, 100, 1] } },
+            'TSMC': { category: '04. 滑模变结构家族', name: '终端滑模控制 (TSMC)', desc: '引入分式次幂滑动面，有限时间内绝对收敛至零。', eq: 'u = u_{eq} + K_{gain} sgn(-v + β e^α)', tuning: 'Alpha必属于(0,1)。非线性吸引子使近端收敛极快，但原点存在不可消除的奇异抖振问题。', params: { beta: [5, 0.1, 20, 0.1], alpha: [0.8, 0.1, 0.99, 0.01], k_gain: [15, 1, 100, 1] } },
+            'FTSMC': { category: '04. 滑模变结构家族', name: '快速终端滑模 (FTSMC)', desc: '结合线性与非线性终端滑模，远端快速近端有限。', eq: 'u = u_{eq} + K_{gain} sgn(-v + c_1 e + c_2 e^q)', tuning: '最极客的滑模。远端靠 C1(线性) 狂飙，近端靠 C2和Q(次幂) 收尾。参数微调较难。', params: { c1: [4, 0.1, 20, 0.1], c2: [2, 0.1, 10, 0.1], q: [0.8, 0.1, 0.99, 0.01], k_gain: [15, 1, 100, 1] } },
+            'ASMC': { category: '04. 滑模变结构家族', name: '自适应滑模控制', desc: '根据滑动面动态自适应调节切换增益。', eq: 'u = u_{eq} + K̂ sgn(s) \\ ( dK̂/dt = γ|s| )', tuning: 'Gamma主导切换增益K_hat的学习速度。无需预知干扰强度，在线把自己武装到恰好镇压干扰的力度。', params: { c_surface: [5, 0.1, 20, 0.1], gamma: [50, 1, 200, 1] } },
+            'SuperTwisting': { category: '04. 滑模变结构家族', name: '超螺旋滑模 (2阶SMC)', desc: '将高频切换隐藏在积分项内部，极大削弱抖振。', eq: 'u = u_{eq} + m(λ√|s|sgn(s) + W∫sgn(s) dt)', tuning: '解决抖振的终极方案！Lambda和W黄金配比通常为 Lambda=1.5*sqrt(W)。观察红线，几乎完美平滑！', params: { c: [5, 0.1, 20, 0.1], lambda: [10, 1, 50, 1], W: [20, 1, 100, 1] } },
+            'LevantHOSM': { category: '04. 滑模变结构家族', name: 'Levant 鲁棒精确微分滑模', desc: '通过高阶滑模精确微分器无延迟滤除噪声提取理想导数。', eq: 'u = K_{gain} sat(s_{Levant}/ε) + k·r', tuning: '无惧传感器噪声。L1/L2是观测器增益，L1过小导致误差放大，调控二者可在抗噪与跟随间折中。', params: { l1: [10, 1, 50, 1], l2: [20, 1, 100, 1], c_surf: [5, 0.1, 20, 0.1], k_gain: [20, 1, 100, 1] } },
+            'VariableG-SMC': { category: '04. 滑模变结构家族', name: '变增益滑模 (Variable-Gain SMC)', desc: '切换增益非恒定，基于状态范数动态扩张。', eq: 'u = u_{eq} + (k_0 + k_1|x|) sgn(s)', tuning: 'K_1|x| 在远端获得极高增益狂暴回扯，近端仅留 K_0 温柔保底。化解了恒定高增益的机械损伤。', params: { c_surf: [5, 0.1, 20, 0.1], k0: [5, 0.1, 20, 0.1], k1: [10, 0.1, 50, 0.1] } },
+            'AW-PI': { category: '04. 滑模变结构家族', name: '抗饱和 PI (Anti-Windup PI)', desc: '遇限幅时切断积分通道，经典钳位反算算法。', eq: 'I_{dot} = e - K_a (u - sat(u))', tuning: '由于它处理强约束限幅极其鲁棒，暂放此类。K_a 为反算系数，优雅钳位，解限后瞬间恢复战力。', params: { kp: [30, 0, 100, 1], ki: [20, 0, 100, 0.1], k_aw: [5, 0.1, 20, 0.1] } }, 
+
+            // === 【5. 数据驱动与智能】 ===
+            'NPID': { category: '05. 数据驱动与智能', name: '韩氏非线性 PID', desc: '利用 fal 函数实现“小误差大增益，大误差小增益”。', eq: 'u = K_p fal(e) + K_i ∫fal(e) + K_d fal(-v)', tuning: 'Alpha调低(<0.7)能极大放大微小静差的权重实现高敏捷；Delta防止原点导数无穷大，必设极小值(0.1)。', params: { kp: [40, 1, 100, 1], ki: [10, 0, 50, 0.1], kd: [20, 1, 50, 0.1], alpha: [0.75, 0.1, 0.9, 0.05], delta: [0.1, 0.01, 1, 0.01] } },
+            'MRAC': { category: '05. 数据驱动与智能', name: 'MRAC (模型参考自适应)', desc: '在线自适应调整参数，追踪预设理想模型。', eq: 'u = θ_r r + θ_x x + θ_v v \\ (dθ/dt ∝ e_m)', tuning: 'Gamma学习率决定追踪紫色参考线的积极性。过大会引发参数震荡。Wn/Zeta决定理想模型动态特质。', params: { gamma: [10, 0.1, 50, 0.1], wn: [2, 0.5, 10, 0.1], zeta: [1, 0.1, 2, 0.1] } },
+            'STR': { category: '05. 数据驱动与智能', name: '自校正调节器 (STR)', desc: '在线辨识系统环境参数，实时求解极点配置。', eq: 'u = mω² r - (mω² - k̂)x - (2mζω - ĉ)v', tuning: '底层偷偷计算估测弹簧系数(K)和阻尼(C)，摸清底细后瞬间施展极点配置实现完美控制。', params: { gamma: [5, 0.1, 50, 0.1], wn: [2, 1, 10, 0.1], zeta: [1, 0.1, 2, 0.1] } },
+            'MFAC': { category: '05. 数据驱动与智能', name: '无模型自适应 (MFAC)', desc: '引入广义误差面解决二阶物理系统纯积分导致的发散问题。', eq: 'u(k)=u(k-1)+[ρ φ/(λ+φ²)]e^* \\ φ(k)=φ(k-1)+[ηΔu/(μ+Δu²)](Δy-φΔu)', tuning: '基础MFAC等效纯积分，必须用 Kd 引入电子阻尼(广义误差面)。Rho 控制步长，Eta 决定 φ 学习率，Lambda 防除零发散。', params: { rho: [0.5, 0.01, 2, 0.01], kd: [15.0, 0, 50, 0.1], lambda: [1.0, 0.1, 10, 0.1], eta: [1.0, 0.1, 5, 0.1], mu: [1.0, 0.1, 5, 0.1] } },
+            'iPID': { category: '05. 数据驱动与智能', name: '超局部智能 PID (iPID)', desc: '在线估计极复杂动态项并直接代数对消。', eq: 'u = (-F̂ + K_p e - K_d v) / α', tuning: 'Alpha必须恰当缩放；Tau滤波器时间常数越小则F估计越灵敏，但噪声放大风险剧增。未知干扰杀手。', params: { alpha: [1.0, 0.01, 5, 0.01], kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1], tau: [0.05, 0.01, 0.5, 0.01] } },
+            'U-Model': { category: '05. 数据驱动与智能', name: 'U-Model 动力学求根', desc: 'Newton-Raphson 迭代法在线实时求解控制多项式的根。', eq: 'u(k) = u(k-1) + μ(r - ŷ) / (∂y/∂u) + PD', tuning: '牛顿迭代步长 Step_nr 非常敏感，过大必炸。将复杂的非线性寻根问题通过局部线性化映射，对时变系统有效。', params: { kp: [20, 1, 50, 1], kd: [10, 0.1, 20, 0.1], step_nr: [0.5, 0.01, 1, 0.01] } },
+            'ESC': { category: '05. 数据驱动与智能', name: '极值寻优控制 (ESC)', desc: '注入探测正弦波实时计算成本梯度寻优。', eq: 'u = u_{pd} + u_{bias} + a·sin(ωt)', tuning: '控制线的极高频振动是它的“寻优触角”。通过评估扰动代价反向调整偏置(Bias)，极度魔幻。', params: { k_esc: [50, 1, 100, 1], omega: [15, 1, 50, 1], amp: [1.0, 0.1, 10, 0.1] } },
+            'BELBIC': { category: '05. 数据驱动与智能', name: '大脑情感仿生控制 (BELBIC)', desc: '哺乳动物边缘系统神经模型，纯正仿生学。', eq: 'u = A - O + k·r \\ (A:杏仁核, O:眶额皮层)', tuning: '杏仁核主攻快速惩罚性学习，眶额皮层负责遗忘平抑过冲。调节感觉权重(We/Wv)模拟情绪对行动影响。', params: { a_A: [10, 0.1, 20, 0.1], a_O: [5, 0.1, 20, 0.1], w_e: [2, 0.1, 5, 0.1], w_v: [1, 0.1, 5, 0.1] } },
+            'Linear-Actor-Critic': { category: '05. 数据驱动与智能', name: '线性 Actor-Critic (RL)', desc: '在线自适应评价与动作策略更新。修正版 DDPG 概念。', eq: 'V = θ_c^T φ(x), u = θ_a^T φ(x) + r \\ (TD_err更新)', tuning: 'Alpha_a (演员学习率)直接决定动作调整速度。基于 TD 误差(时间差分)动态进化网络权重。', params: { alpha_c: [2.0, 0.1, 10, 0.1], alpha_a: [5.0, 0.1, 20, 0.1], gamma_rl: [0.95, 0.8, 0.99, 0.01] } },
+            'Gradient-PID': { category: '05. 数据驱动与智能', name: '基于梯度在线 PID (代IFT)', desc: '利用在线计算的误差敏感度(梯度)动态调整 PID 参数。', eq: 'K_p = K_p - γ_p e (∂e/∂K_p)', tuning: '无需离线实验。只要误差存在，系统就能根据敏捷梯度(Gamma_p/d)自动扭转 PID 使其最优。', params: { gamma_p: [0.5, 0.01, 2.0, 0.01], gamma_d: [0.1, 0.01, 1.0, 0.01], kp0: [10, 1, 50, 1] } },
+
+            // === 【6. 融合与复合架构】 ===
+            'DOB': { category: '06. 融合与复合架构', name: 'DOB (扰动观测器框架)', desc: '【逆模型 + PD】估算外部总扰动直接补偿。', eq: 'u = K_p e - K_d v - d̂ \\ (d̂=LPF(u-u_{nom}))', tuning: '调高W_c可光速识别扰动对冲，但在真实带噪声系统中会让你付出全系高频抖动的惨痛代价。', params: { w_c: [50, 1, 100, 1], kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1] } },
+            'IMC': { category: '06. 融合与复合架构', name: '内模控制 (IMC)', desc: '【内部模型 + PID】引入过程模型逆修正扰动。', eq: 'u = K_p(r\' - x) + K_i ∫(r\' - x) - K_d v', tuning: '后台跑名义模型，一旦现实跑偏，把偏差送给PI狂补。稳健性取决于已知模型底子有多准。', params: { kp: [40, 1, 100, 1], ki: [10, 0.1, 50, 0.1], kd: [20, 0.1, 50, 0.1] } },
+            'ADRC': { category: '06. 融合与复合架构', name: 'LADRC (线性自抗扰)', desc: '【LESO + LSEF】视未知为总扰动进行观测对消。', eq: 'u = (w_c²(r - z₁) - 2w_c z₂ - z₃) / b₀', tuning: 'W_o(观测器带宽)推荐设为 W_c(控制反馈带宽) 的3-5倍。B0只要数量级不出错，剩下全靠观测器逆天强补。', params: { w_o: [30, 5, 100, 1], w_c: [10, 1, 50, 1], b0: [0.5, 0.01, 5, 0.01] } },
+            'NL-ADRC': { category: '06. 融合与复合架构', name: 'NL-ADRC (非线性自抗扰)', desc: '【NLESO+NLSEF】全盘非线性fal函数榨取抗扰极限。', eq: 'u = (w_c² fal(r-z₁) - 2w_c z₂ - z₃) / b₀', tuning: '韩京清教授原版。非线性扩张在极小偏差下有非凡感知力。Delta值越小非线性切换越猛。', params: { w_o: [30, 5, 100, 1], w_c: [10, 1, 50, 1], b0: [0.5, 0.01, 5, 0.01], delta: [0.1, 0.01, 0.5, 0.01] } },
+            'ARC': { category: '06. 融合与复合架构', name: '自适应鲁棒控制 (ARC)', desc: '【自适应 + 滑模】参数在线学习，高频干扰滑模镇定。', eq: 'u = m̂(-cv) + kx + cv + K_s s + K_n sgn(s)', tuning: '双剑合璧。Gamma严格跟随观测信息学习系统的质量漂移，瞬发打击则交由K_s/K_n滑模强行镇压。', params: { gamma: [5, 0.1, 20, 0.1], c: [5, 0.1, 20, 0.1], k_s: [15, 0, 50, 1], k_n: [5, 0, 20, 0.5] } },
+            'ESO-SMC': { category: '06. 融合与复合架构', name: '扩张观测器+滑模 (ESO-SMC)', desc: '【LESO + SMC】观测器补偿90%扰动，滑模镇定残差。', eq: 'u = (-c·z₂ - z₃ + K·sat(s)) / b₀', tuning: '由于前置ESO已经挖走了几乎所有的可观测干扰，滑模的K_gain只需设个极小的数值保底，从而实现无抖振极致平滑。', params: { w_o: [30, 5, 100, 1], c_surface: [5, 0.1, 20, 0.1], k_gain: [10, 1, 50, 1], b0: [0.5, 0.01, 5, 0.01] } },
+            'L1': { category: '06. 融合与复合架构', name: 'L1 自适应控制', desc: '【极高增益自适应 + LPF】完美解耦自适应速度与鲁棒性。', eq: 'u = LPF(u_{pd} - m·θ̂_x) \\ dθ̂_x/dt = -γ(v̂ - v)', tuning: 'Gamma可以丧心病狂地拉到1000。由于使用了真实预测状态v̂，T_lpf死死兜底隔离高频发散，绝对稳。', params: { gamma: [1000, 100, 2000, 100], t_lpf: [0.05, 0.01, 0.5, 0.01], wn: [2, 0.5, 10, 0.1], zeta: [1, 0.1, 2, 0.1] } },
+            'I-and-I': { category: '06. 融合与复合架构', name: 'I&I 浸入与不变自适应', desc: '不要求参数收敛，仅要求目标流形收敛，瞬间跟踪极佳。', eq: 'u = K_p e - K_d v + d̂ \\ d̂ = z - λmv \\ dz/dt = λu - λd̂', tuning: '不再纠结参数准确性。适当拔高 Lambda，系统将在极短的时间内强迫轨迹进入安全流形空间，超调控制完爆经典MRAC。', params: { gamma: [10, 0.1, 50, 0.1], lambda: [5, 1, 50, 1], kp: [30, 1, 100, 1], kd: [15, 0.1, 50, 0.1] } },
+            'AdaptBackstepping': { category: '06. 融合与复合架构', name: '自适应反步法', desc: '【反步+辨识】虚拟控制律严格基于Lyapunov推导参数自适应律。', eq: 'u = -z₁ - c₂z₂ - m̂ c₁ v + kx + cv \\ d(m̂)/dt = γ z₂ c₁ v', tuning: '极其优雅的数学推导连携反应。即使遇到质量骤变也能在几秒内将其收敛抵消稳住局面。', params: { c1: [5, 0.1, 20, 0.1], c2: [5, 0.1, 20, 0.1], gamma_m: [2, 0.1, 20, 0.1] } },
+            'T-DOB': { category: '06. 融合与复合架构', name: '时延估测观测器 (T-DOB)', desc: '直接利用上一时刻的推力和时延微积分估测扰动。', eq: 'd̂ = u(t-d) - M a(t-d)', tuning: '这是 DOB 家族最务实的一派。只要 D_delay 足够小，它连非最小相位系统都能给你硬掰回正轨。', params: { m_nom: [2.0, 0.5, 10, 0.1], delay_d: [3, 1, 10, 1], kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1] } },
+
+            // === 【7. 前沿与新型约束】 ===
+            'PPC': { category: '07. 前沿与新型约束', name: '规定性能控制 (PPC)', desc: '非线性映射保证瞬态误差绝对锁死在指数衰减漏斗内。', eq: 'u = K_p z_{ppc} - K_d v + kr \\ (z=\\frac{1}{2}\\ln\\frac{1+e/ρ}{1-e/ρ})', tuning: '硬性要求：Rho_0(漏斗初高)必须严格大于指令初差！L是漏斗闭合速度，调高可强制光速落位。', params: { kp: [30, 1, 50, 1], kd: [10, 0, 20, 0.1], rho_0: [6.0, 1, 10, 0.1], rho_inf: [0.1, 0.01, 1, 0.01], l: [1.0, 0.1, 5, 0.1] } },
+            'BLF': { category: '07. 前沿与新型约束', name: '障碍李雅普诺夫 (BLF)', desc: '状态逼近安全边界 $k_b$ 时，控制力趋于无穷。', eq: 'u = K_p [ e / (k_b^2 - e^2) ] - K_d v + kr', tuning: 'Kb是不可跨越的生死边界。稍微逼近边界，控制推力就能指数级起飞，像隐形墙一样将轨迹弹回。', params: { kb: [6.0, 1, 15, 0.1], kp: [20, 1, 50, 1], kd: [10, 0, 20, 0.1] } },
+            'ETC': { category: '07. 前沿与新型约束', name: '事件触发控制 (ETC)', desc: '为节省带宽区间保持力度，表现为锯齿状掉落-拉回。', eq: 'u(t)=u(t_k) \\ 触发: |e(t)-e(t_k)| > σ|e(t)| + ε₀', tuning: 'Sigma越大网络带宽节省越极致。注意看红色控制力极富特色的平直阶跃，即不更新网络报文的省流时刻。', params: { sigma: [0.15, 0.01, 0.5, 0.01], kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1], eps0: [0.05, 0.01, 0.5, 0.01] } },
+            'Switched': { category: '07. 前沿与新型约束', name: '切换系统/驻留时间 (Switched)', desc: '多控制器利用李雅普诺夫衰减和驻留时间强硬调度。', eq: 'u = u_{fast} (V>1) \\ | \\ u_{slow} (V≤1)', tuning: 'Dwell(驻留时间)是防抖基石。若无驻留间隔强行插补，两套子系统频密切换必然诱发Zeno恶性震荡发散。', params: { p_fast: [4, 1, 10, 0.1], p_slow: [2, 0.1, 5, 0.1], dwell: [0.5, 0.1, 2, 0.1] } },
+            'DynPole': { category: '07. 前沿与新型约束', name: '动态极点配置', desc: '根据误差游走复平面极点。误差大退守，小则深埋光速收敛。', eq: 'u = -k_1(e)x - k_2(e)v + (k_1(e)+k)r', tuning: 'Alpha_p控制游移敏捷性。大偏差拉远极点为防执行器过饱和，贴近目标拉近极点为极致精度无情镇压。', params: { p_max: [5, 1, 15, 0.1], p_min: [2, 0.1, 5, 0.1], alpha_p: [1, 0.1, 10, 0.1] } },
+            'PTC': { category: '07. 前沿与新型约束', name: '预设时间控制 (PTC)', desc: '硬核承诺！无论初始状态如何，保证在指定的绝对时间内收敛。', eq: 'u = kx+cv + m( K_p e / t_{eff}^2 - K_d v / t_{eff} )', tuning: 'T_p即Deadline！系统逼近该时间点时，无论差距多大都会爆发出几何级增长控制力强行拉平误差。', params: { Tp: [2.0, 0.5, 5.0, 0.1], kp: [2.0, 0.1, 10.0, 0.1], kd: [3.0, 0.1, 10.0, 0.1], eps: [0.05, 0.01, 0.5, 0.01] } },
+            'FxTC': { category: '07. 前沿与新型约束', name: '固定时间控制 (FxTC)', desc: '无论初值多大，收敛时间永远存在一个固定的理论上界。', eq: 'u = K_1 e^{p/q} + K_2 e^{r/s} \\ (p/q>1, r/s<1)', tuning: '融合了大误差域的高次幂和小误差域的低次幂，全域暴力。K1/K2直接决定固定时间上界，调大即秒杀。', params: { k1: [10, 1, 50, 1], k2: [15, 1, 50, 1], p_q: [1.2, 1.05, 2.0, 0.05], r_s: [0.8, 0.1, 0.95, 0.05] } },
+            'Tan-BLF': { category: '07. 前沿与新型约束', name: '正切障碍李雅普诺夫', desc: '利用正切函数制造无穷边界，处理全状态约束。', eq: 'u = K_p e \\sec^2(\\frac{π e^2}{2 k_b^2}) - K_d v', tuning: '与对数BLF类似，但使用三角函数包裹。Kb仍是生死线。一旦触线sec函数爆发无穷大斥力。', params: { kb: [6.0, 1, 15, 0.1], kp: [20, 1, 50, 1], kd: [10, 0.1, 20, 0.1] } },
+            'TimeVary-BLF': { category: '07. 前沿与新型约束', name: '时变障碍李雅普诺夫', desc: '墙壁像液压机一样不断向内压缩，逼迫状态强行收敛。', eq: 'u = K_p e / (k_b(t)^2 - e^2)', tuning: 'Lb 是墙壁向内压拢的速度。非常凶残，它等于把BLF和PPC结合在了一起，必须确保滑块跑得比墙缩得快。', params: { kb0: [6.0, 1, 15, 0.1], kb_inf: [0.5, 0.1, 2.0, 0.1], lb: [0.5, 0.1, 2.0, 0.1], kp: [20, 1, 50, 1], kd: [15, 0.1, 30, 0.1] } },
+            'Integral-BLF': { category: '07. 前沿与新型约束', name: '积分障碍李雅普诺夫', desc: '给积分器套上枷锁，防止普通抗饱和算法中的反算延迟。', eq: 'u = PID... with BLF on ∫e', tuning: '极其适合高精度加工领域。它在源头上扼杀了积分超调的可能性。', params: { kb_i: [10.0, 1, 50, 0.5], kp: [40, 1, 100, 1], ki: [10, 0.1, 50, 0.1], kd: [20, 0.1, 50, 0.1] } },
+
+            // === 【8. 轨迹规划与学习】 ===
+            'InputShaping': { category: '08. 轨迹规划与学习', name: '输入整形控制 (ZV Shaper)', desc: '利用固有频率延时裂变脉冲指令，相消干涉彻底抹除震荡。', eq: 'u = K_p(r_{shaped} - x) - K_d v + k r_{shaped}', tuning: '极度硬核的高级数控机床开环技术。假设模型绝对准确，观察紫色的“楼梯前馈”，正巧利用时差完美抵消回弹。', params: { kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1] } },
+            'ILC': { category: '08. 轨迹规划与学习', name: '迭代学习控制 (ILC)', desc: '每次目标跳变视为一轮新Trial，利用上一轮同时间点误差叠加控制增量。', eq: 'u_k(t) = u_{k-1}(t) + Γ e_k(t) + kr', tuning: '多次触发目标突变跳变(模拟Trial)！Gamma_ilc控制吸收教训比重，轨迹将愈发变态平滑。', params: { gamma_ilc: [1.0, 0.05, 2, 0.05], kp_base: [10, 0, 50, 1] } },
+            'Repetitive': { category: '08. 轨迹规划与学习', name: '重复控制 (RC)', desc: '内模原理离散实现，通过延迟线记忆周期误差并反相叠加补偿。', eq: 'u(t) = Q·u(t-L) + K_{rc} e(t-L) + PD + kr', tuning: 'Q_filter防高频噪声无限内卷发散的救命稻草(略<1)。对持续不断固定模式波形干扰有绝对碾压抹除特攻。', params: { k_rc: [5, 0.1, 20, 0.1], q_filter: [0.95, 0.5, 1, 0.01] } },
+            'GainSched': { category: '08. 轨迹规划与学习', name: '增益调度控制 (Gain Scheduling)', desc: '在“激进”与“保守”两组参数间极其平滑地非线性插值。', eq: 'u = K_p(|e|) e - K_d v + kr', tuning: '利用插值系数将狂暴高P增益自然过渡到绵柔低P增益，业界搞定严重非线性非定常系统最务实一手。', params: { kp_far: [60, 10, 150, 1], kp_near: [20, 1, 50, 1], bnd: [2, 0.1, 10, 0.1] } },
+            'SmithPredict': { category: '08. 轨迹规划与学习', name: '史密斯预估补偿 (Smith Predictor)', desc: '利用模型将纯大滞后时间剥离出反馈死循环。', eq: 'u = C(s) [ r - y - (ŷ - ŷ_{delay}) ]', tuning: '专治大迟延。Delay_T(迟延预判)如果和真实物理迟延严丝合缝，系统的响应如无滞后般迅猛。', params: { kp: [20, 1, 50, 1], kd: [10, 0.1, 20, 0.1], delay_t: [0.5, 0.05, 2.0, 0.05] } },
+            'Posicast': { category: '08. 轨迹规划与学习', name: 'Posicast 前馈补偿', desc: '利用开环半周期衰减阶跃技术切分输入指令波。', eq: 'r_{mod} = r(t) + K_{pos} r(t-Td)', tuning: '与输入整形异曲同工。K_pos 依据阻尼比推算，若物理阻尼低，会自动反相发射反冲波抵消抖动。', params: { kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1], k_pos: [0.3, 0, 1.0, 0.01], td: [0.3, 0.05, 1.0, 0.05] } },
+            'FuzzyPID': { category: '08. 轨迹规划与学习', name: '模糊 PID', desc: '【严谨重构】结合 3x3 规则库和重心解模糊在线微调 PID 参数。', eq: 'u = (K_{p0}+ΔK_p)e + (K_{i0}+ΔK_i)∫e - (K_{d0}+ΔK_d)v', tuning: 'Range约束参数浮动警戒线。基于真实模糊推理解模糊在线修正，拒绝简单 IF-ELSE。', params: { kp0: [30, 0, 50, 1], ki0: [5, 0, 20, 0.1], kd0: [15, 0, 30, 0.1], range: [10, 1, 50, 1] } },
+            'NeuralPID': { category: '08. 轨迹规划与学习', name: '神经元自适应 PID', desc: '【Hebbian神网 + PID】无监督学习在线自动进化权重。', eq: 'u = K (w_1 e + w_2 ∫e - w_3 v)', tuning: 'Eta神经突触学习率务必保持在0.01或更小，依赖缩放因子K放大动作力。能感受到权重的进化。', params: { K: [100, 1, 200, 1], eta: [0.01, 0.001, 0.1, 0.001] } },
+            'Fuzzy': { category: '08. 轨迹规划与学习', name: '纯模糊控制 (Fuzzy)', desc: '【严谨重构】构建双输入单输出(e,ec)的完整模糊表面，包含模糊化与清晰化。', eq: 'u = Defuzzify( Rules( \\mu(e), \\mu(ec) ) ) · Gain', tuning: 'Ke和Kec是量化因子，保证物理误差落入模糊论域[-1, 1]。重心法运算带来的非线性曲面响应极为柔和。', params: { gain: [3, 0.1, 10, 0.1], ke: [0.5, 0.01, 1, 0.01], kec: [0.5, 0.01, 1, 0.01] } },
+            'EnergyShaping': { category: '08. 轨迹规划与学习', name: '能量成型 (IDA-PBC)', desc: '【哈密顿结构重塑】修改等效势能并注入非线性阻尼。', eq: 'u = kx - K_d(x-r) - (R_0 + R_1 |v|)v', tuning: 'K_d 赋予虚拟弹簧拉力；R_0为基底阻尼，R_1为防高速猛冲的非线性截断阻尼。能量架构绝对安全无瑕。', params: { k_d: [30, 1, 100, 1], r_d0: [10, 0, 50, 0.1], r_d1: [5, 0, 20, 0.1] } },
+
+            // === 【9. 鲁棒与现代预测】 ===
+            'TubeMPC': { category: '09. 鲁棒与现代预测', name: '管式模型预测 (Tube MPC)', desc: '将名义MPC轨迹包裹在一个“鲁棒不变管”中，名义规划，局部镇定。', eq: 'u = u_{mpc}^* + K_{ancillary}(x - x_{mpc}^*)', tuning: '极富想象力的架构！K_anc为辅助镇定增益，一旦被突发扰动踢出中心轨迹，极速拉回名义管内。', params: { t_pred: [0.5, 0.05, 2.0, 0.05], lambda: [0.01, 0.001, 1, 0.001], k_anc: [30, 1, 100, 1] } },
+            'SDRE': { category: '09. 鲁棒与现代预测', name: '状态相关黎卡提方程 (SDRE)', desc: 'LQR的非线性完全体。在线实时求解参数依赖的 ARE。', eq: 'u = -R^{-1} B^T P(x) x \\ (A(x)^T P + P A(x)...)', tuning: '这里采用局部近似。Q_weight 越高镇定越狂暴，完全克服了 LQR 对非线性大范围束手无策的窘境。', params: { q_weight: [100, 10, 500, 10] } },
+            'GPC': { category: '09. 鲁棒与现代预测', name: '广义预测控制 (GPC)', desc: '基于 CARIMA 离散传递函数模型的长时间尺预测算子。', eq: 'Δu = (G^T G + λI)^{-1} G^T (w - f)', tuning: 'Ny为预测视野，Nu为控制视野。带有“从容不迫”的平滑感，极其适合高炉等大滞后环境。', params: { ny: [10, 1, 20, 1], nu: [3, 1, 10, 1], lam: [0.5, 0.01, 2, 0.01] } },
+            'RLS-Adaptive': { category: '09. 鲁棒与现代预测', name: '在线RLS辨识自适应 (代VRFT)', desc: '【严谨重构】利用递推最小二乘法(RLS)在线辨识模型参数，反求控制器。', eq: 'θ̂ = RLS(x, u); u = K(θ̂) e', tuning: '完全摒弃原版不负责任的盲乘逻辑，系统通过记忆矩阵 P 实打实地根据历史数据纠正自身辨识参数。', params: { rls_lambda: [0.98, 0.9, 1.0, 0.01], w_bw: [5.0, 0.1, 20, 0.1] } },
+            'Robust-NL-Damping': { category: '09. 鲁棒与现代预测', name: '鲁棒边界阻尼控制 (代H∞)', desc: '【严谨重构】处理有界不确定性，在无法解黎卡提方程时的降级平替。', eq: 'u = K_{nom} e - (D_{nom} + γ_d) v', tuning: '原版假借 H-infinity 之名行 PD 之实。现修正为针对最大扰动界的非线性鲁棒阻尼注入法则。', params: { kp_nom: [40, 10, 100, 1], gamma_d: [5.0, 0, 50, 0.1] } },
+            'NDOB': { category: '09. 鲁棒与现代预测', name: '非线性扰动观测器 (NDOB)', desc: '基于李代数设计的全非线性观测器，无需系统逆模型即可精确估算。', eq: 'd̂ = z + p(x,v) \\ u = u_n - d̂', tuning: 'L_obs 为非线性观测器增益矩阵。相较线性DOB，能在广阔状态空间内保持无静差估算。', params: { l_obs: [20, 1, 100, 1], kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1] } },
+
+            // === 【10. 观测器与网络拓扑】 ===
+            'Extended-Luenberger': { category: '10. 观测器与网络拓扑', name: '扩展龙伯格观测 (E-Luenberger)', desc: '非线性系统线性化。在线雅可比矩阵求导后使用线性观测。', eq: 'dx̂/dt = f(x̂) + L(x - x̂)', tuning: 'L_gain 配置带宽。计算量远小于卡尔曼，但在突发大扰动导致局部线性化失效时容易估测崩溃。', params: { l_gain: [20, 1, 100, 1], kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1] } },
+            'EKF-Ctrl': { category: '10. 观测器与网络拓扑', name: '扩展卡尔曼反馈 (EKF-Ctrl)', desc: '不仅过滤噪声，还能在线把未知的干扰 d 作为一个增广状态给过滤出来。', eq: 'x̂_{k+1} = ... + K_k(y - h(x̂))', tuning: 'Q_cov(过程噪声阵)和 R_cov(测量噪声阵)的黄金博弈。只要调对了，波形就像用热刀切黄油一样顺滑。', params: { q_cov: [10, 0.1, 50, 0.1], r_cov: [1, 0.1, 10, 0.1], kp: [40, 1, 100, 1], kd: [20, 0.1, 50, 0.1] } },
+            'Particle-Filter': { category: '10. 观测器与网络拓扑', name: '粒子滤波反馈 (PF-Ctrl)', desc: '撒出成百上千个“粒子”在空间里试探，利用蒙特卡洛统计重采样出真实状态。', eq: 'u = K(r - ∑ w_i x_i)', tuning: '极为消耗算力(代码中精简为20个粒子)。对付非高斯噪声(比如断崖式的脉冲干扰)效果吊打卡尔曼。', params: { p_num: [20, 5, 50, 1], kp: [30, 1, 100, 1], kd: [15, 0.1, 50, 0.1] } },
+            'Neural-RBF-ADRC': { category: '10. 观测器与网络拓扑', name: 'RBF神网自抗扰 (代伪Neural)', desc: '【严谨重构】布置5个高斯径向基中心点，用隐藏层输出和ESO残差在线BP训练。', eq: 'f_{NN} = ∑ w_i \\exp(-||e-c_i||^2) ; \\dot{w}_i = η e_{eso} h_i', tuning: '替换了原版挂羊头卖狗肉的代码。利用正统径向基网络逼近极其复杂的系统非线性。', params: { wo: [30, 5, 100, 1], wc: [10, 1, 50, 1], n_lr: [5.0, 0.1, 20.0, 0.1], b0: [0.5, 0.01, 5, 0.01] } },
+            'Artstein-Reduction': { category: '10. 观测器与网络拓扑', name: 'Artstein 模型降阶补偿', desc: '【严谨重构】处理纯通讯迟延！利用真实的分布积分前推预判将其降阶为无迟延系统。', eq: 'z = x + ∫_{0}^d e^{As}B u(t-s) ds', tuning: '放弃了原版仅仅抽取单点延时的谬误，实施了严格的积分变换。理论上可以跨越任意极端的网络延迟。', params: { kp: [20, 1, 50, 1], kd: [10, 0.1, 30, 0.1], delay_a: [10, 1, 50, 1] } },
+            'Quantized-Ctrl': { category: '10. 观测器与网络拓扑', name: '量化截断防网络阻塞', desc: '极度贫瘠的信道带宽！控制力不能是连续的，必须被强制向下取整为粗糙的阶梯量阶。', eq: 'u = Q(K_p e - K_d v) \\ Q:截断算子', tuning: 'Q_step 阶梯宽度！调大它，你会看到控制力完全变成极粗的方波，系统因此在目标点附近产生永远消不掉的量化极限环！', params: { kp: [50, 1, 150, 1], kd: [20, 0.1, 50, 0.1], q_step: [5.0, 0.5, 20.0, 0.5] } },
+            'Event-Triggered-MPC': { category: '10. 观测器与网络拓扑', name: '事件触发 MPC 算力卸载', desc: 'MPC 每算一次算力消耗巨大。设定一个门槛，没越过门槛就坚决套用上一轮的预判残羹。', eq: 'Trigger QP if |x - x_{pred}| > δ', tuning: 'ET_Limit 是容忍度。它把连续的平滑预测变成了带有一点延迟顿挫的间歇性抽风控制，但给芯片省下了巨量算力。', params: { t_pred: [0.5, 0.05, 2.0, 0.05], lambda: [0.01, 0.001, 1, 0.001], et_limit: [0.2, 0.01, 1.0, 0.01] } },
+
+            // === 【11. 高阶与物理前沿】 ===
+            'FO-PD': { category: '11. 高阶与物理前沿', name: '分数阶 PD 控制 (FO-PD)', desc: '微积分项不再是整数 1，允许极其细腻的超前相位配置。利用 G-L 近似求解。', eq: 'u = K_p e + K_d D^μ e', tuning: 'Mu 决断微分强度。突破了传统PD的相位限制，能在频域上捏造出任何形状的裕度包络。', params: { kp: [40, 1, 100, 1], kd: [15, 0.1, 50, 0.1], mu: [0.8, 0.1, 1.5, 0.05] } },
+            'Nonlinear-Power-ADRC': { category: '11. 高阶与物理前沿', name: '非线性次幂自抗扰 (原分数阶)', desc: '【名字修正】ESO使用分数次幂驱动，非线性极限扩张，原名产生误导。', eq: 'z_{dot} = f(z) + β |e|^α sgn(e)', tuning: 'Alpha 使得大误差收敛如虎，微小误差感知入微。是韩京清理论的直接数学泛化。', params: { wo: [30, 5, 100, 1], wc: [10, 1, 50, 1], b0: [0.5, 0.01, 5, 0.01], alpha: [0.75, 0.1, 0.99, 0.01] } },
+            'Implicit-Euler-Ctrl': { category: '11. 高阶与物理前沿', name: '隐式欧拉离散控制', desc: '专为计算机仿真破局！通过后向欧拉差分，即使增益无穷大也绝不发散。', eq: 'u_k = u_{eq} + k · s_{k} / (1 + λ dt)', tuning: '这是现代数字控制的基石。不管你把 Lambda 拉到多夸张，离散系统硬是能在一步内死死抱住目标绝不抖振。', params: { c_surf: [5, 0.1, 20, 0.1], lambda: [50, 1, 200, 1] } },
+            'Lorenz-Coupled': { category: '11. 高阶与物理前沿', name: '洛伦兹强迫反馈 (原混沌同步)', desc: '【严谨重构】并非加个噪声那么简单！强制物理系统的误差态反馈耦合进主混沌流形。', eq: 'u = k·e - D·v + K_c (x_{lorenz} - e)', tuning: 'Rho 是瑞利数(通常28)。控制律强制把单纯的弹簧振子拽进三维蝴蝶吸引子轨道一起陪着发疯。', params: { kp: [60, 1, 150, 1], kd: [20, 0.1, 50, 0.1], rho: [28.0, 10.0, 50.0, 1.0] } },
+            'Speed-Gradient': { category: '11. 高阶与物理前沿', name: '速度梯度法 (Speed-Gradient)', desc: '俄国流派经典。强制控制变量沿着系统局部能量函数的负梯度滑落。', eq: 'u_dot = -γ ∇_u Q(x,u)', tuning: 'Gamma 是能量滑落速度。你看到的是积分形态的输出，它自带一种极其迷人的物理自稳定迟缓感。', params: { gamma_sg: [20, 1, 100, 1], q_weight: [1.0, 0.1, 10, 0.1] } },
+            'Feedback-Passivation': { category: '11. 高阶与物理前沿', name: '反馈无源化 (Feedback Passivation)', desc: '用前置力矩将原本不耗散的系统“伪装”成一个自带能量耗散的无源体，再施加阻尼。', eq: 'u = u_{passify}(x) - K_v v', tuning: '极其安全！由于整个系统的能量被强制配置为恒减，只要 Kv 大于0，物理上它绝对不可能发散。', params: { kp: [30, 1, 100, 1], kv: [15, 0.1, 50, 0.1] } }
+        };
+
+        const getDefaultParams = (method) => {
+            const params = {};
+            for (const [key, value] of Object.entries(CONTROLLER_CONFIGS[method].params)) {
+                params[key] = value[0];
+            }
+            return params;
+        };
+
+        const fal = (e, a, d) => Math.abs(e) <= d ? e / Math.pow(d, 1 - a) : Math.sign(e) * Math.pow(Math.abs(e), a);
+        const gaussNoise = () => {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random();
+            while(v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        };
+        const calcGLWeights = (order, len) => {
+            let w = [1];
+            for (let j = 1; j < len; j++) w[j] = (1 - (order + 1)/j) * w[j-1];
+            return w;
+        };
+
+        // 简化的隶属度计算函数 (Fuzzy 重构用)
+        const getMembership = (x) => {
+            let N = 0, Z = 0, P = 0;
+            if (x <= -1) N = 1; else if (x > -1 && x < 0) { N = -x; Z = x + 1; }
+            else if (x >= 0 && x < 1) { Z = 1 - x; P = x; } else P = 1;
+            return { N, Z, P };
+        };
+
+        function ControlSimulator() {
+            const [running, setRunning] = useState(false);
+            const [method, setMethod] = useState('PID');
+            const [physParams, setPhysParams] = useState(INITIAL_PARAMS);
+            const [ctrlParams, setCtrlParams] = useState(getDefaultParams('PID'));
+            const [disturbanceTrigger, setDisturbanceTrigger] = useState(0); 
+            
+            const [targetMode, setTargetMode] = useState('step');
+            const [contDisturbance, setContDisturbance] = useState(0);
+            const [initialX, setInitialX] = useState(0);
+            const [actuatorLimit, setActuatorLimit] = useState(200);
+            const [sensorNoise, setSensorNoise] = useState(0);
+            
+            const [coulombFriction, setCoulombFriction] = useState(0);
+            const [actuatorDeadzone, setActuatorDeadzone] = useState(0);
+            const [plantDelay, setPlantDelay] = useState(0);
+
+            const stateRef = useRef({ x: 0, v: 0, t: 0, alg: {} });
+            const historyRef = useRef([]);
+            const chartStateRef = useRef({ frozen: false, freezeTimer: 0 });
+            const impulseRef = useRef(0);
+
+            const simCanvasRef = useRef(null);
+            const posChartCanvasRef = useRef(null);
+            const ctrlChartCanvasRef = useRef(null);
+            const requestRef = useRef();
+
+            const resetAlgState = (methodName, currTarget = 5.0) => {
+                stateRef.current.alg = {
+                    integral: 0, e_prev: 0, e_prev2: 0, u_prev: 0, u_prev2: 0, x_prev: 0, v_prev: 0,
+                    d_hat: 0, st_int: 0, 
+                    z1: 0, z2: 0, z3: 0, xm: 0, vm: 0, theta_r: 0, theta_x: 0, theta_v: 0, 
+                    u_l1_filter: 0, w1: 0.33, w2: 0.33, w3: 0.33, 
+                    m_hat: 1.0, k_hat: 1.0, c_hat: 0.5, 
+                    vm_imc: 0, xm_imc: 0, phi: 0.5, K_hat: 0, F_hat_f: 0,
+                    e_hist: new Array(50).fill(0), z_dsc: 0, u_esc_bias: 0,
+                    P_k: [[1,0],[0,1]], x_kf: 0, v_kf: 0, u_qft_prev: 0, theta_hat_ii: 0,
+                    last_target: currTarget, t_target: 0, xd: 0, vd: 0,
+                    last_e_etc: 0, last_u_etc: 0,
+                    z0_lev: 0, z1_lev: 0,
+                    rmse_sum: 0, energy: 0, ticks: 0,
+                    V_belbic: 0, W_belbic: 0,
+                    wc_adp: 1.0, wa_adp: 40.0, wd_adp: 10.0, 
+                    ilc_memory: new Array(1000).fill(0), ilc_idx: 0,
+                    rep_queue: new Array(50).fill(0), rep_idx: 0,
+                    switch_state: 0, last_switch_time: -999,
+                    target_history: [],
+                    
+                    x_delay_buf: new Array(200).fill(0),
+                    u_delay_buf: new Array(200).fill(0),
+                    u_hw_buffer: new Array(100).fill(0),
+                    H_hormone: 0, P_sdre: 10.0, chi_nuss: 0, amd_x: 0, amd_v: 0, fault_time: 0,
+                    l_x: 0, l_v: 0, mj_mode: 1, st_next: 0, f_int: 0, u_hold: 0,
+                    
+                    // RBF, RL, RLS 特定状态
+                    w_rbf: new Array(5).fill(0.1), w_actor: [0, 0, 0], w_critic: [0, 0, 0],
+                    P_rls: [[100, 0], [0, 100]], theta_rls: [1.0, 0.5],
+                    
+                    l_x_l: 0.1, l_y_l: 0.1, l_z_l: 0.1, pf_particles: new Array(20).fill(0), f_adrc_z: 0
+                };
+            };
+
+            const loopStateRef = useRef({ running, method, physParams, ctrlParams, targetMode, contDisturbance, actuatorLimit, sensorNoise, coulombFriction, actuatorDeadzone, plantDelay });
+            useEffect(() => { loopStateRef.current = { running, method, physParams, ctrlParams, targetMode, contDisturbance, actuatorLimit, sensorNoise, coulombFriction, actuatorDeadzone, plantDelay }; }, [running, method, physParams, ctrlParams, targetMode, contDisturbance, actuatorLimit, sensorNoise, coulombFriction, actuatorDeadzone, plantDelay]);
+
+            const triggerDisturbance = () => {
+                impulseRef.current = 150.0; 
+                setDisturbanceTrigger(v => v + 1);
+                chartStateRef.current.frozen = false;
+                chartStateRef.current.freezeTimer = 0;
+            };
+
+            const calculateControlOutput = (dt, x, v, target, pP, cP, alg, currentMethod, currTime) => {
+                const e = target - x;
+                let u = 0;
+                
+                let target_changed = false;
+                if (Math.abs(target - alg.last_target) > 0.01) {
+                    alg.last_target = target;
+                    alg.t_target = 0; alg.xd = x; alg.vd = v; alg.ilc_idx = 0;
+                    if(alg.e0 === undefined) { alg.e0 = e; alg.v0 = v; } 
+                    target_changed = true;
+                }
+                alg.t_target += dt;
+
+                if (currentMethod === 'InputShaping' || currentMethod === 'Posicast') {
+                    if (target_changed || alg.target_history.length === 0) alg.target_history.push({ t: currTime, val: target });
+                }
+                
+                alg.x_delay_buf.unshift(x); alg.x_delay_buf.pop();
+                alg.u_delay_buf.unshift(alg.u_prev||0); alg.u_delay_buf.pop();
+                
+                alg.e_hist.unshift(e); alg.e_hist.pop();
+
+                switch (currentMethod) {
+                    case 'OpenLoop': u = pP.k * target; break;
+                    case 'P': u = cP.kp * e; break;
+                    case 'PI': alg.integral += e * dt; u = cP.kp * e + cP.ki * alg.integral; break;
+                    case 'PD': u = cP.kp * e - cP.kd * v; break;
+                    case 'PID': alg.integral = Math.max(-50, Math.min(50, alg.integral + e * dt)); u = cP.kp * e + cP.ki * alg.integral - cP.kd * v; break;
+                    case 'IPD': alg.integral += e * dt; u = cP.ki * alg.integral - cP.kp * x - cP.kd * v; break;
+                    case '2DOF-PID': alg.integral = Math.max(-50, Math.min(50, alg.integral + e * dt)); u = cP.kp * (cP.b * target - x) + cP.ki * alg.integral - cP.kd * v; break;
+                    case 'IncPID': {
+                        const delta_u = cP.kp * (e - (alg.e_prev||0)) + cP.ki * e + cP.kd * (e - 2 * (alg.e_prev||0) + (alg.e_prev2||0));
+                        u = (alg.u_prev||0) + delta_u; alg.e_prev2 = alg.e_prev; alg.e_prev = e; break;
+                    }
+                    case 'PI-D':
+                        alg.integral += e * dt; u = cP.kp * e + cP.ki * alg.integral - cP.kd * v; break;
+                    case 'Nested-PID': {
+                        const v_d = cP.kp_out * e; alg.integral += (v_d - v) * dt;
+                        u = cP.kp_in * (v_d - v) + cP.ki_in * alg.integral + pP.k * target; break;
+                    }
+
+                    case 'PolePlacement': {
+                        const k1 = pP.m * (cP.p1 * cP.p2) - pP.k; const k2 = pP.m * (cP.p1 + cP.p2) - pP.c;
+                        u = -k1 * x - k2 * v + (k1 + pP.k) * target; break;
+                    }
+                    case 'LQR': {
+                        const lqr_kp = Math.sqrt(cP.q_x / cP.r_weight); const lqr_kd = Math.sqrt(cP.q_v / cP.r_weight + 2 * pP.m * lqr_kp);
+                        u = lqr_kp * e - lqr_kd * v; break;
+                    }
+                    case 'LQG': {
+                        const y_meas = x + 0.1 * gaussNoise();
+                        const a_kf = (alg.u_prev - INITIAL_PARAMS.k * alg.x_kf - INITIAL_PARAMS.c * alg.v_kf) / INITIAL_PARAMS.m;
+                        alg.x_kf += alg.v_kf * dt + 0.3 * (y_meas - alg.x_kf); alg.v_kf += a_kf * dt + 0.1 * (y_meas - alg.x_kf);
+                        const lqg_kp = Math.sqrt(cP.q_x / cP.r_w); const lqg_kd = Math.sqrt(cP.q_v / cP.r_w + 2 * INITIAL_PARAMS.m * lqg_kp);
+                        u = lqg_kp * (target - alg.x_kf) - lqg_kd * alg.v_kf; break;
+                    }
+                    case 'LQR-I': {
+                        alg.integral += e * dt;
+                        const k_lqi_x = Math.sqrt(cP.q_x / 1.0); const k_lqi_v = Math.sqrt(cP.q_v / 1.0); const k_lqi_i = Math.sqrt(cP.q_i / 1.0);
+                        u = k_lqi_x * e - k_lqi_v * v + k_lqi_i * alg.integral; break;
+                    }
+                    case 'MPC': {
+                        const H = (cP.t_pred * cP.t_pred) / (2 * pP.m);
+                        const x_free = x + v * cP.t_pred - H * (pP.c * v + pP.k * x);
+                        u = (H * (target - x_free) + cP.lambda * pP.k * target) / (H * H + cP.lambda); break;
+                    }
+                    case 'Deadbeat':
+                        u = (pP.m / (dt * dt)) * cP.kp_scale * e - (pP.m / dt + pP.c) * cP.kp_scale * v + pP.k * x; break;
+                    case 'H-Infinity': {
+                        const gamma_sq = cP.gamma * cP.gamma; const P22 = Math.sqrt(cP.q_x / Math.max(0.01, 1 - 1/gamma_sq)); const P12 = Math.sqrt(pP.m * P22);
+                        u = P22 * e - P12 * v; break;
+                    }
+                    case 'QFT-LeadLag': {
+                        const z_d = cP.zero; const p_d = cP.pole; const K_d = cP.gain;
+                        const n0 = K_d * (2/dt + z_d); const n1 = K_d * (z_d - 2/dt); const d0 = 2/dt + p_d; const d1 = p_d - 2/dt;
+                        u = (n0 * e + n1 * (alg.e_prev||0) - d1 * (alg.u_qft_prev||0)) / d0; alg.e_prev = e; alg.u_qft_prev = u; break;
+                    }
+                    case 'IMP-Servo': {
+                        alg.integral += e * dt;
+                        const k_imp_x = Math.sqrt(cP.q_x / cP.r_u); const k_imp_i = Math.sqrt(cP.q_e / cP.r_u); const k_imp_v = Math.sqrt(2 * pP.m * k_imp_x); 
+                        u = -k_imp_x * x - k_imp_v * v + k_imp_i * alg.integral + pP.k * target; break;
+                    }
+                    case 'Preview': {
+                        let f_sum = 0; for(let i=0; i<5; i++) f_sum += Math.pow(0.8, i) * target; 
+                        u = cP.kp * e - cP.kd * v + cP.k_prev * f_sum; break;
+                    }
+
+                    case 'BangBang': u = (Math.abs(e) < 0.05 && Math.abs(v) < 0.05) ? 0 : (e > 0 ? cP.force : -cP.force); break;
+                    case 'BangBang-Zone': u = Math.abs(e) > cP.zone ? (Math.sign(e) * cP.force) : (cP.kp * e - 20 * v + pP.k * target); break;
+                    case 'Relay': if (e > cP.deadzone) u = cP.force; else if (e < -cP.deadzone) u = -cP.force; else u = alg.u_prev; break;
+                    case 'TimeOptimal': {
+                        const a_max = cP.force / pP.m; const sig = e - Math.sign(v) * (v * v) / (2 * a_max);
+                        u = (Math.abs(e) < 0.2 && Math.abs(v) < 0.5) ? pP.k * target + 30 * e - 15 * v : (sig > 0 ? cP.force : -cP.force); break;
+                    }
+                    case 'FeedbackLin': u = pP.m * (cP.kp * e - cP.kd * v) + pP.c * v + pP.k * x; break;
+                    case 'Backstepping': {
+                        const z1_bs = -e; const z2_bs = v - (-cP.c1 * z1_bs);
+                        u = pP.m * (-z1_bs - cP.c2 * z2_bs + cP.c1 * v) + pP.k * x + pP.c * v; break;
+                    }
+                    case 'DSC': {
+                        const s1_dsc = x - target; const alpha1_dsc = -cP.c1 * s1_dsc;
+                        alg.z_dsc += ((alpha1_dsc - alg.z_dsc) / cP.tau) * dt;
+                        const z1_dot = (alpha1_dsc - alg.z_dsc) / cP.tau; const s2_dsc = v - alg.z_dsc;
+                        u = pP.m * (z1_dot - cP.c2 * s2_dsc - s1_dsc) + pP.k * x + pP.c * v; break;
+                    }
+                    case 'TDC': {
+                        const a_prev = (v - (alg.v_prev||0)) / dt; const F_tdc = a_prev - alg.u_prev / cP.m_nom;
+                        u = cP.m_nom * (cP.kp * e - cP.kd * v - F_tdc); alg.v_prev = v; break;
+                    }
+                    case 'NDC': u = cP.kp * e - cP.kd * v - cP.k_nd * e * e * v; break;
+                    case 'CFTC': {
+                        const beta_cftc = 2 * cP.alpha / (1 + cP.alpha);
+                        u = cP.kp * Math.pow(Math.abs(e), cP.alpha) * Math.sign(e) - cP.kd * Math.pow(Math.abs(v), beta_cftc) * Math.sign(v) + pP.k * target; break;
+                    }
+
+                    case 'SMC': { 
+                        const s_smc = cP.c_surface * e - v;
+                        const u_eq_smc = pP.k * x + pP.c * v - pP.m * cP.c_surface * v;
+                        u = u_eq_smc + cP.k_gain * Math.max(-1, Math.min(1, s_smc / cP.eps)); break;
+                    }
+                    case 'VSC-RL': {
+                        const s_rl = cP.c_surface * e - v;
+                        const u_eq_rl = pP.k * x + pP.c * v - pP.m * cP.c_surface * v;
+                        u = u_eq_rl + pP.m * (cP.eps * Math.sign(s_rl) + cP.k_rl * s_rl); break;
+                    }
+                    case 'ISMC': {
+                        alg.integral += e * dt;
+                        u = pP.k * x + pP.c * v + cP.k_gain * Math.max(-1, Math.min(1, (-v + cP.c1 * e + cP.c2 * alg.integral) / 0.1)); break;
+                    }
+                    case 'TSMC': {
+                        const e_abs = Math.max(Math.abs(e), 0.001); const s_tsmc = -v + cP.beta * Math.sign(e) * Math.pow(e_abs, cP.alpha);
+                        const u_eq_tsmc = pP.k * x + pP.c * v - pP.m * (cP.beta * cP.alpha * Math.pow(e_abs, cP.alpha - 1) * v);
+                        u = u_eq_tsmc + cP.k_gain * Math.sign(s_tsmc); break;
+                    }
+                    case 'FTSMC': {
+                        const s_ft = -v + cP.c1 * e + cP.c2 * Math.sign(e) * Math.pow(Math.abs(e), cP.q);
+                        const u_eq_ft = pP.k * x + pP.c * v - pP.m * (cP.c1 * v + cP.c2 * cP.q * Math.pow(Math.max(Math.abs(e),0.001), cP.q-1) * v);
+                        u = u_eq_ft + cP.k_gain * Math.sign(s_ft); break;
+                    }
+                    case 'ASMC': {
+                        const s_asmc = cP.c_surface * e - v; alg.K_hat = Math.max(0, Math.min(alg.K_hat + cP.gamma * Math.abs(s_asmc) * dt, 200));
+                        const u_eq_asmc = pP.k * x + pP.c * v - pP.m * cP.c_surface * v;
+                        u = u_eq_asmc + alg.K_hat * Math.sign(s_asmc); break;
+                    }
+                    case 'SuperTwisting': {
+                        const s_st = cP.c * e - v; alg.st_int += cP.W * Math.sign(s_st) * dt;
+                        const u_eq_st = pP.k * x + pP.c * v - pP.m * cP.c * v;
+                        u = u_eq_st + pP.m * (cP.lambda * Math.sqrt(Math.abs(s_st)) * Math.sign(s_st) + alg.st_int); break;
+                    }
+                    case 'LevantHOSM': {
+                        const noisy_e = e + 0.1 * gaussNoise();
+                        alg.z0_lev += (-cP.l1 * Math.sqrt(Math.abs(alg.z0_lev - noisy_e)) * Math.sign(alg.z0_lev - noisy_e) + alg.z1_lev) * dt;
+                        alg.z1_lev += (-cP.l2 * Math.sign(alg.z0_lev - noisy_e)) * dt;
+                        u = cP.k_gain * Math.max(-1, Math.min(1, (cP.c_surf * alg.z0_lev + alg.z1_lev) / 0.1)) + pP.k * target; break;
+                    }
+                    case 'VariableG-SMC': {
+                        const s_vg = cP.c_surf * e - v; const k_vg = cP.k0 + cP.k1 * Math.abs(x);
+                        u = pP.k*x + pP.c*v - pP.m*cP.c_surf*v + k_vg * Math.sign(s_vg); break;
+                    }
+                    case 'AW-PI': {
+                        const u_pi_raw = cP.kp * e + cP.ki * alg.integral;
+                        const u_sat = Math.max(-200, Math.min(200, u_pi_raw));
+                        alg.integral += (e - cP.k_aw * (u_pi_raw - u_sat)) * dt;
+                        u = u_sat - 20 * v + pP.k * target; break;
+                    }
+
+                    case 'NPID': {
+                        alg.integral += fal(e, cP.alpha, cP.delta) * dt;
+                        u = cP.kp * fal(e, cP.alpha, cP.delta) + cP.ki * alg.integral + cP.kd * fal(-v, cP.alpha, cP.delta); break;
+                    }
+                    case 'MRAC': {
+                        const a_m = cP.wn * cP.wn * target - 2 * cP.zeta * cP.wn * alg.vm - cP.wn * cP.wn * alg.xm;
+                        alg.vm += a_m * dt; alg.xm += alg.vm * dt; const e_m = alg.xm - x;
+                        alg.theta_r = Math.max(-200, Math.min(200, alg.theta_r + cP.gamma * e_m * target * dt));
+                        alg.theta_x = Math.max(-200, Math.min(200, alg.theta_x + cP.gamma * e_m * x * dt));
+                        alg.theta_v = Math.max(-200, Math.min(200, alg.theta_v + cP.gamma * e_m * v * dt));
+                        u = alg.theta_r * target + alg.theta_x * x + alg.theta_v * v; break;
+                    }
+                    case 'STR': {
+                        const a_real = (v - (alg.v_prev||0)) / dt; const a_err = a_real - ((alg.u_prev - alg.k_hat*x - alg.c_hat*v)/pP.m);
+                        alg.k_hat = Math.max(0.1, Math.min(20, alg.k_hat - cP.gamma * a_err * x * dt));
+                        alg.c_hat = Math.max(0.1, Math.min(10, alg.c_hat - cP.gamma * a_err * v * dt));
+                        u = pP.m * cP.wn * cP.wn * target - (pP.m * cP.wn * cP.wn - alg.k_hat) * x - (pP.m * 2 * cP.zeta * cP.wn - alg.c_hat) * v;
+                        alg.v_prev = v; break;
+                    }
+                    case 'MFAC': {
+                        const e_star = e - cP.kd * v; const y_star = x + cP.kd * v;
+                        const d_u = alg.u_prev - alg.u_prev2; const d_y = alg.x_prev !== undefined ? (y_star - alg.x_prev) : 0; 
+                        if (Math.abs(d_u) > 1e-5) alg.phi = alg.phi + (cP.eta * d_u / (cP.mu + d_u * d_u)) * (d_y - alg.phi * d_u);
+                        if (alg.phi < 0.001 || alg.phi > 10.0) alg.phi = 0.5;
+                        u = alg.u_prev + (cP.rho * alg.phi / (cP.lambda + alg.phi * alg.phi)) * e_star;
+                        alg.u_prev2 = alg.u_prev; alg.x_prev = y_star; break;
+                    }
+                    case 'iPID': {
+                        const F_raw = (v - (alg.v_prev||0)) / dt - cP.alpha * alg.u_prev;
+                        alg.F_hat_f += ((F_raw - alg.F_hat_f) / cP.tau) * dt;
+                        u = (-alg.F_hat_f + cP.kp * e - cP.kd * v) / cP.alpha; alg.v_prev = v; break;
+                    }
+                    case 'U-Model': {
+                        const y_pred = x + v * dt + (alg.u_prev / pP.m) * dt * dt; const jacobian = (dt * dt) / pP.m; 
+                        u = alg.u_prev + cP.step_nr * (target - y_pred) / jacobian + cP.kp * e - cP.kd * v; break;
+                    }
+                    case 'ESC': {
+                        alg.u_esc_bias += -cP.k_esc * ((e * e) * Math.sin(cP.omega * stateRef.current.t)) * dt;
+                        u = 20 * e - 10 * v + alg.u_esc_bias + cP.amp * Math.sin(cP.omega * stateRef.current.t); break;
+                    }
+                    case 'BELBIC': {
+                        const SI = cP.w_e * e - cP.w_v * v; const Rew = e - 0.1 * v; 
+                        const A_bel = Math.max(0, alg.V_belbic * SI); const O_bel = alg.W_belbic * SI;
+                        alg.V_belbic = Math.max(0, alg.V_belbic + cP.a_A * SI * Math.max(0, Rew - A_bel) * dt); 
+                        alg.W_belbic += cP.a_O * SI * (A_bel - O_bel - Rew) * dt; 
+                        u = A_bel - O_bel + pP.k * target; break;
+                    }
+                    case 'Linear-Actor-Critic': {
+                        const phi = [e, v, e*v]; // 特征向量
+                        let V_val = 0, u_actor = 0;
+                        for(let i=0; i<3; i++) { V_val += alg.w_critic[i]*phi[i]; u_actor += alg.w_actor[i]*phi[i]; }
+                        
+                        const r_reward = - (e*e + 0.1*v*v);
+                        const e_next = target - (x + v*dt); const v_next = v + ((u_actor - pP.k*x - pP.c*v)/pP.m)*dt;
+                        const phi_next = [e_next, v_next, e_next*v_next];
+                        let V_next = 0; for(let i=0; i<3; i++) V_next += alg.w_critic[i]*phi_next[i];
+                        
+                        const td_err = r_reward + cP.gamma_rl * V_next - V_val;
+                        
+                        for(let i=0; i<3; i++) {
+                            alg.w_critic[i] += cP.alpha_c * td_err * phi[i] * dt;
+                            alg.w_actor[i] += cP.alpha_a * td_err * phi[i] * dt;
+                        }
+                        u = u_actor + pP.k * target; break;
+                    }
+                    case 'Gradient-PID': {
+                        const grad_kp = -e * e; 
+                        const grad_kd = e * v;  
+                        alg.init_kp = Math.max(1, (alg.init_kp || cP.kp0) - cP.gamma_p * grad_kp * dt);
+                        alg.init_kd = Math.max(0.1, (alg.init_kd || 10) - cP.gamma_d * grad_kd * dt);
+                        u = alg.init_kp * e - alg.init_kd * v + pP.k*target; break;
+                    }
+
+                    case 'DOB': {
+                        const a_est_dob = (v - (alg.v_prev || 0)) / dt;
+                        const u_nom_dob = INITIAL_PARAMS.m * a_est_dob + INITIAL_PARAMS.c * v + INITIAL_PARAMS.k * x;
+                        alg.d_hat += ((alg.u_prev - u_nom_dob - alg.d_hat) / (1 / cP.w_c)) * dt;
+                        u = cP.kp * e - cP.kd * v - alg.d_hat; alg.v_prev = v; break;
+                    }
+                    case 'IMC': {
+                        const am_imc = (alg.u_prev - INITIAL_PARAMS.k * alg.xm_imc - INITIAL_PARAMS.c * alg.vm_imc) / INITIAL_PARAMS.m;
+                        alg.vm_imc += am_imc * dt; alg.xm_imc += alg.vm_imc * dt;
+                        const r_mod = target - (x - alg.xm_imc); 
+                        alg.integral = Math.max(-50, Math.min(50, alg.integral + (r_mod - x) * dt));
+                        u = cP.kp * (r_mod - x) + cP.ki * alg.integral - cP.kd * v; break;
+                    }
+                    case 'ADRC': {
+                        const eo = alg.z1 - x;
+                        alg.z1 += (alg.z2 - 3 * cP.w_o * eo) * dt; alg.z2 += (alg.z3 - 3 * cP.w_o * cP.w_o * eo + cP.b0 * alg.u_prev) * dt; alg.z3 += (-Math.pow(cP.w_o, 3) * eo) * dt;
+                        u = (cP.w_c * cP.w_c * (target - alg.z1) - 2 * cP.w_c * alg.z2 - alg.z3) / cP.b0; break;
+                    }
+                    case 'NL-ADRC': {
+                        const e_eso = alg.z1 - x;
+                        alg.z1 += (alg.z2 - 3 * cP.w_o * e_eso) * dt; 
+                        alg.z2 += (alg.z3 - 3 * cP.w_o * cP.w_o * fal(e_eso, 0.5, cP.delta) + cP.b0 * alg.u_prev) * dt;
+                        alg.z3 += (-Math.pow(cP.w_o, 3) * fal(e_eso, 0.25, cP.delta)) * dt;
+                        u = (cP.w_c * cP.w_c * fal(target - alg.z1, 0.75, cP.delta) - 2 * cP.w_c * alg.z2 - alg.z3) / cP.b0; break;
+                    }
+                    case 'ARC': {
+                        const s_arc = cP.c * e - v; 
+                        alg.m_hat = Math.max(0.5, Math.min(10, alg.m_hat + cP.gamma * s_arc * (-cP.c * v) * dt));
+                        u = alg.m_hat * (-cP.c * v) + pP.k * x + pP.c * v + cP.k_s * s_arc + cP.k_n * Math.sign(s_arc); break;
+                    }
+                    case 'ESO-SMC': {
+                        const e_obs = alg.z1 - x;
+                        alg.z1 += (alg.z2 - 3 * cP.w_o * e_obs) * dt; 
+                        alg.z2 += (alg.z3 - 3 * cP.w_o * cP.w_o * e_obs + cP.b0 * alg.u_prev) * dt; 
+                        alg.z3 += (-Math.pow(cP.w_o, 3) * e_obs) * dt;
+                        const s_eso = cP.c_surface * (target - alg.z1) - alg.z2;
+                        const u_eq_eso = (-cP.c_surface * alg.z2 - alg.z3) / cP.b0;
+                        u = u_eq_eso + (cP.k_gain / cP.b0) * Math.max(-1, Math.min(1, s_eso / 0.1)); break;
+                    }
+                    case 'L1': {
+                        alg.v_pred = alg.v_pred ?? v;
+                        const v_pred_dot = -10.0 * (alg.v_pred - v) + alg.u_prev / pP.m + alg.theta_x;
+                        alg.v_pred += v_pred_dot * dt;
+                        const v_tilde = alg.v_pred - v;
+                        alg.theta_x = Math.max(-5000, Math.min(5000, alg.theta_x - cP.gamma * v_tilde * dt));
+                        const u_baseline = cP.wn * cP.wn * (target - x) - 2 * cP.zeta * cP.wn * v + pP.k * target;
+                        const u_raw_l1 = u_baseline - alg.theta_x * pP.m;
+                        alg.u_l1_filter += ((u_raw_l1 - alg.u_l1_filter) / cP.t_lpf) * dt;
+                        u = alg.u_l1_filter; 
+                        const a_m_l1 = cP.wn * cP.wn * target - 2 * cP.zeta * cP.wn * alg.vm - cP.wn * cP.wn * alg.xm;
+                        alg.vm += a_m_l1 * dt; alg.xm += alg.vm * dt; break;
+                    }
+                    case 'I-and-I': {
+                        const d_hat_ii = alg.theta_hat_ii - cP.lambda * pP.m * v;
+                        const z_dot_ii = -cP.lambda * d_hat_ii + cP.lambda * alg.u_prev;
+                        alg.theta_hat_ii += z_dot_ii * dt;
+                        u = cP.kp * e - cP.kd * v + d_hat_ii; break;
+                    }
+                    case 'AdaptBackstepping': {
+                        const z1_ab = -e; const alpha1_ab = -cP.c1 * z1_ab; const z2_ab = v - alpha1_ab;
+                        alg.m_hat = Math.max(0.5, Math.min(10.0, alg.m_hat + cP.gamma_m * z2_ab * (cP.c1 * v) * dt));
+                        u = pP.k * x + pP.c * v - z1_ab - cP.c2 * z2_ab - alg.m_hat * (cP.c1 * v); break;
+                    }
+                    case 'T-DOB': {
+                        const td_step = Math.min(199, Math.floor(cP.delay_d));
+                        const v_past = (alg.x_delay_buf[td_step-1] - alg.x_delay_buf[td_step]) / dt;
+                        const a_past = (v - v_past) / (td_step * dt);
+                        const d_tdob = alg.u_delay_buf[td_step] - cP.m_nom * a_past;
+                        u = cP.kp * e - cP.kd * v - d_tdob; break;
+                    }
+
+                    case 'PPC': {
+                        const rho_t = (cP.rho_0 - cP.rho_inf) * Math.exp(-cP.l * alg.t_target) + cP.rho_inf;
+                        const safe_eps = Math.max(-0.99, Math.min(0.99, e / rho_t)); 
+                        const z_ppc = 0.5 * Math.log((1 + safe_eps) / (1 - safe_eps));
+                        u = cP.kp * z_ppc - cP.kd * v + pP.k * target; alg.ref_display = rho_t; break;
+                    }
+                    case 'BLF': {
+                        const e_blf = Math.max(-cP.kb + 0.05, Math.min(cP.kb - 0.05, e)); 
+                        u = cP.kp * (e_blf / (cP.kb * cP.kb - e_blf * e_blf)) - cP.kd * v + pP.k * target; break;
+                    }
+                    case 'ETC': {
+                        if (Math.abs(e - alg.last_e_etc) > cP.sigma * Math.abs(e) + cP.eps0 || alg.t_target < dt) {
+                           alg.last_u_etc = cP.kp * e - cP.kd * v + pP.k * target; alg.last_e_etc = e;
+                        }
+                        u = alg.last_u_etc; break;
+                    }
+                    case 'Switched': {
+                        const V_lyap = 0.5 * e * e + 0.5 * v * v;
+                        if (currTime - alg.last_switch_time > cP.dwell) { 
+                            if (V_lyap > 1.0 && alg.switch_state !== 1) { alg.switch_state = 1; alg.last_switch_time = currTime; }
+                            else if (V_lyap <= 1.0 && alg.switch_state !== 2) { alg.switch_state = 2; alg.last_switch_time = currTime; }
+                        }
+                        u = alg.switch_state === 1 ? (cP.p_fast * 20 * e - 5 * v + pP.k * target) : (cP.p_slow * 10 * e - 20 * v + pP.k * target); break;
+                    }
+                    case 'DynPole': {
+                        const dyn_p = cP.p_min + (cP.p_max - cP.p_min) * Math.exp(-cP.alpha_p * Math.abs(e));
+                        const k1_dp = pP.m * (dyn_p * dyn_p) - pP.k; const k2_dp = pP.m * (2 * dyn_p) - pP.c;
+                        u = -k1_dp * x - k2_dp * v + (k1_dp + pP.k) * target; break;
+                    }
+                    case 'PTC': {
+                        const t_eff = Math.max(cP.Tp - alg.t_target, cP.eps);
+                        const u_cancel = pP.k * x + pP.c * v;
+                        const u_ptc = pP.m * (cP.kp / (t_eff * t_eff) * e - cP.kd / t_eff * v);
+                        u = u_cancel + u_ptc; break;
+                    }
+                    case 'FxTC': {
+                        u = cP.k1 * Math.pow(Math.abs(e), cP.p_q)*Math.sign(e) + cP.k2 * Math.pow(Math.abs(e), cP.r_s)*Math.sign(e) - 20*v + pP.k*target; break;
+                    }
+                    case 'Tan-BLF': {
+                        const tan_arg = (Math.PI * e * e) / (2 * cP.kb * cP.kb);
+                        const safe_tan = Math.max(-1.5, Math.min(1.5, tan_arg));
+                        u = cP.kp * e * (1 + Math.pow(Math.tan(safe_tan), 2)) - cP.kd * v + pP.k * target; break;
+                    }
+                    case 'TimeVary-BLF': {
+                        const kb_t = (cP.kb0 - cP.kb_inf) * Math.exp(-cP.lb * alg.t_target) + cP.kb_inf;
+                        const e_tvb = Math.max(-kb_t + 0.05, Math.min(kb_t - 0.05, e)); 
+                        u = cP.kp * (e_tvb / (kb_t * kb_t - e_tvb * e_tvb)) - cP.kd * v + pP.k * target; alg.ref_display = kb_t; break;
+                    }
+                    case 'Integral-BLF': {
+                        alg.integral += e * dt;
+                        const i_blf = Math.max(-cP.kb_i + 0.01, Math.min(cP.kb_i - 0.01, alg.integral));
+                        u = cP.kp * e + cP.ki * (i_blf / (cP.kb_i*cP.kb_i - i_blf*i_blf)) - cP.kd * v + pP.k*target; break;
+                    }
+
+                    case 'InputShaping': {
+                        const wn_zv = Math.sqrt(pP.k / pP.m); const zeta_zv = pP.c / (2 * Math.sqrt(pP.k * pP.m));
+                        const K_zv = Math.exp(-zeta_zv * Math.PI / Math.sqrt(1 - zeta_zv * zeta_zv));
+                        const td_zv = Math.PI / (wn_zv * Math.sqrt(1 - zeta_zv * zeta_zv));
+                        const A1 = 1 / (1 + K_zv); const A2 = K_zv / (1 + K_zv);
+                        let r_shaped = 0;
+                        for (let i = alg.target_history.length - 1; i >= 0; i--) {
+                            const hist = alg.target_history[i];
+                            if (currTime >= hist.t) r_shaped += A1 * hist.val;
+                            if (currTime >= hist.t + td_zv) r_shaped += A2 * hist.val;
+                            break; 
+                        }
+                        u = cP.kp * (r_shaped - x) - cP.kd * v + pP.k * r_shaped; alg.ref_display = r_shaped; break;
+                    }
+                    case 'ILC': {
+                        if (alg.ilc_idx < 1000) {
+                            alg.ilc_memory[alg.ilc_idx] += cP.gamma_ilc * e; 
+                            u = alg.ilc_memory[alg.ilc_idx] + cP.kp_base * e + pP.k * target; alg.ilc_idx++;
+                        } else { u = cP.kp_base * e + pP.k * target; } break;
+                    }
+                    case 'Repetitive': {
+                        alg.rep_queue[alg.rep_idx] = e;
+                        const e_delayed = alg.rep_queue[(alg.rep_idx + 1) % 50]; 
+                        const u_rc = cP.q_filter * alg.u_prev + cP.k_rc * e_delayed;
+                        u = u_rc + 20 * e - 10 * v + pP.k * target; alg.rep_idx = (alg.rep_idx + 1) % 50; break;
+                    }
+                    case 'GainSched': {
+                        const alpha_gs = Math.max(0, Math.min(1, Math.abs(e) / cP.bnd)); 
+                        const kp_curr = alpha_gs * cP.kp_far + (1 - alpha_gs) * cP.kp_near; 
+                        u = kp_curr * e - 20 * v + pP.k * target; break;
+                    }
+                    case 'SmithPredict': {
+                        const delay_idx = Math.min(199, Math.floor(cP.delay_t / dt));
+                        const x_sim = alg.x_delay_buf[0] + (alg.u_prev/pP.m)*dt;
+                        const x_sim_delay = alg.x_delay_buf[delay_idx];
+                        u = cP.kp * (target - x - (x_sim - x_sim_delay)) - cP.kd * v + pP.k * target; break;
+                    }
+                    case 'Posicast': {
+                        const td_p = Math.min(199, Math.floor(cP.td / dt));
+                        const r_pos = target + cP.k_pos * (alg.target_history.length > td_p ? alg.target_history[alg.target_history.length-td_p].val : target);
+                        u = cP.kp * (r_pos - x) - cP.kd * v + pP.k * r_pos; alg.ref_display = r_pos; break;
+                    }
+                    case 'FuzzyPID': {
+                        alg.integral = Math.max(-50, Math.min(50, alg.integral + e * dt));
+                        const e_norm = Math.max(-1, Math.min(1, e / 5));
+                        const ec_norm = Math.max(-1, Math.min(1, -v / 5));
+                        const mem_e = getMembership(e_norm);
+                        const mem_ec = getMembership(ec_norm);
+                        
+                        let rule_P = 0, sum_W = 0;
+                        const w_NN = Math.min(mem_e.N, mem_ec.N); rule_P += w_NN * 1; sum_W += w_NN;
+                        const w_NZ = Math.min(mem_e.N, mem_ec.Z); rule_P += w_NZ * 1; sum_W += w_NZ;
+                        const w_NP = Math.min(mem_e.N, mem_ec.P); rule_P += w_NP * 0; sum_W += w_NP;
+                        const w_ZN = Math.min(mem_e.Z, mem_ec.N); rule_P += w_ZN * 1; sum_W += w_ZN;
+                        const w_ZZ = Math.min(mem_e.Z, mem_ec.Z); rule_P += w_ZZ * 0; sum_W += w_ZZ;
+                        const w_ZP = Math.min(mem_e.Z, mem_ec.P); rule_P += w_ZP * -1; sum_W += w_ZP;
+                        const w_PN = Math.min(mem_e.P, mem_ec.N); rule_P += w_PN * 0; sum_W += w_PN;
+                        const w_PZ = Math.min(mem_e.P, mem_ec.Z); rule_P += w_PZ * -1; sum_W += w_PZ;
+                        const w_PP = Math.min(mem_e.P, mem_ec.P); rule_P += w_PP * -1; sum_W += w_PP;
+                        
+                        const defuzz_P = sum_W > 0 ? (rule_P / sum_W) : 0;
+                        const dk_p = cP.range * Math.abs(defuzz_P);
+                        
+                        u = (cP.kp0 + dk_p) * e + cP.ki0 * alg.integral - cP.kd0 * v; break;
+                    }
+                    case 'NeuralPID': {
+                        alg.integral = Math.max(-50, Math.min(50, alg.integral + e * dt));
+                        alg.w1 = Math.max(0.001, alg.w1 + cP.eta * e * e * dt); alg.w2 = Math.max(0.001, alg.w2 + cP.eta * e * alg.integral * dt); alg.w3 = Math.max(0.001, alg.w3 + cP.eta * e * (-v) * dt);
+                        const sumW = alg.w1 + alg.w2 + alg.w3;
+                        u = cP.K * ((alg.w1/sumW) * e + (alg.w2/sumW) * alg.integral + (alg.w3/sumW) * (-v)); break;
+                    }
+                    case 'Fuzzy': {
+                        const e_norm_f = Math.max(-1, Math.min(1, e * cP.ke));
+                        const ec_norm_f = Math.max(-1, Math.min(1, -v * cP.kec));
+                        const mf_e = getMembership(e_norm_f);
+                        const mf_ec = getMembership(ec_norm_f);
+                        
+                        let rule_U = 0, sum_Wf = 0;
+                        const evalRule = (w_e, w_ec, out_val) => {
+                            const w = Math.min(w_e, w_ec);
+                            rule_U += w * out_val; sum_Wf += w;
+                        };
+                        evalRule(mf_e.N, mf_ec.N, -1); evalRule(mf_e.N, mf_ec.Z, -1); evalRule(mf_e.N, mf_ec.P, 0);
+                        evalRule(mf_e.Z, mf_ec.N, -1); evalRule(mf_e.Z, mf_ec.Z, 0);  evalRule(mf_e.Z, mf_ec.P, 1);
+                        evalRule(mf_e.P, mf_ec.N, 0);  evalRule(mf_e.P, mf_ec.Z, 1);  evalRule(mf_e.P, mf_ec.P, 1);
+                        
+                        const defuzz_U = sum_Wf > 0 ? (rule_U / sum_Wf) : 0;
+                        u = defuzz_U * cP.gain * 50; break;
+                    }
+                    case 'EnergyShaping': {
+                        u = pP.k * x - cP.k_d * (x - target) - (cP.r_d0 + cP.r_d1 * Math.abs(v)) * v; break;
+                    }
+
+                    case 'TubeMPC': {
+                        const x_mpc_star = x + v * cP.t_pred; 
+                        const u_mpc_star = (target - x_mpc_star) / (cP.t_pred*cP.t_pred) + cP.lambda * target;
+                        u = u_mpc_star + cP.k_anc * (x_mpc_star - x) - 20 * v; break;
+                    }
+                    case 'SDRE': {
+                        alg.P_sdre = Math.max(0.1, alg.P_sdre - (alg.P_sdre * alg.P_sdre / cP.q_weight - e*e) * dt);
+                        u = cP.q_weight * alg.P_sdre * e - 20 * v + pP.k * target; break;
+                    }
+                    case 'GPC': {
+                        let gpc_sum = 0; for(let i=0; i<cP.ny; i++) gpc_sum += alg.e_hist[i] || 0;
+                        u = alg.u_prev + (gpc_sum / (cP.nu + cP.lam)) - 10 * v; break;
+                    }
+                    case 'RLS-Adaptive': {
+                        const y_curr = x;
+                        const y_past = alg.x_delay_buf[2]; 
+                        const u_past = alg.u_delay_buf[2];
+                        const phi_rls = [y_past, u_past];
+                        
+                        const P_phi = [
+                            alg.P_rls[0][0]*phi_rls[0] + alg.P_rls[0][1]*phi_rls[1],
+                            alg.P_rls[1][0]*phi_rls[0] + alg.P_rls[1][1]*phi_rls[1]
+                        ];
+                        const den_rls = cP.rls_lambda + phi_rls[0]*P_phi[0] + phi_rls[1]*P_phi[1];
+                        const K_rls = [P_phi[0]/den_rls, P_phi[1]/den_rls];
+                        
+                        const err_rls = y_curr - (alg.theta_rls[0]*phi_rls[0] + alg.theta_rls[1]*phi_rls[1]);
+                        alg.theta_rls[0] += K_rls[0] * err_rls;
+                        alg.theta_rls[1] += K_rls[1] * err_rls;
+                        
+                        const P_new = [[0,0],[0,0]];
+                        for(let i=0; i<2; i++) {
+                            for(let j=0; j<2; j++) {
+                                P_new[i][j] = (alg.P_rls[i][j] - K_rls[i]*P_phi[j]) / cP.rls_lambda;
+                            }
+                        }
+                        alg.P_rls = P_new;
+                        
+                        const b_est = Math.max(0.001, alg.theta_rls[1]);
+                        u = (cP.w_bw * e - alg.theta_rls[0] * v) / b_est + pP.k*target; break;
+                    }
+                    case 'Robust-NL-Damping': {
+                        const robust_d = cP.gamma_d * Math.abs(e) * v; 
+                        u = cP.kp_nom * e - (20 + cP.gamma_d + Math.abs(robust_d)) * v + pP.k * target; break;
+                    }
+                    case 'NDOB': {
+                        const p_ndob = cP.l_obs * pP.m * v;
+                        alg.z1 += (-cP.l_obs * (alg.z1 + p_ndob) - cP.l_obs * (pP.k*x + pP.c*v - alg.u_prev)) * dt;
+                        u = cP.kp * e - cP.kd * v - (alg.z1 + p_ndob) + pP.k*x + pP.c*v; break;
+                    }
+
+                    case 'Extended-Luenberger': {
+                        alg.l_x += (alg.l_v + cP.l_gain*(x - alg.l_x)) * dt;
+                        alg.l_v += (alg.u_prev/pP.m - pP.k/pP.m*alg.l_x - pP.c/pP.m*alg.l_v + cP.l_gain*(x - alg.l_x)) * dt;
+                        u = cP.kp * (target - alg.l_x) - cP.kd * alg.l_v + pP.k*target; break;
+                    }
+                    case 'EKF-Ctrl': {
+                        const x_ekf = x + 0.05 * gaussNoise();
+                        alg.l_x += (alg.l_v + (cP.q_cov/cP.r_cov)*(x_ekf - alg.l_x)) * dt;
+                        alg.l_v += (alg.u_prev/pP.m - pP.k/pP.m*alg.l_x + (cP.q_cov/cP.r_cov)*(x_ekf - alg.l_x)) * dt;
+                        u = cP.kp * (target - alg.l_x) - cP.kd * alg.l_v + pP.k*target; break;
+                    }
+                    case 'Particle-Filter': {
+                        for(let i=0; i<cP.p_num; i++) alg.pf_particles[i] = alg.pf_particles[i] + 0.1*gaussNoise() + (x - alg.pf_particles[i])*0.5;
+                        const x_pf = alg.pf_particles.reduce((a,b)=>a+b) / cP.p_num;
+                        u = cP.kp * (target - x_pf) - cP.kd * v + pP.k*target; break;
+                    }
+                    case 'Neural-RBF-ADRC': {
+                        const e_eso_rbf = alg.z1 - x;
+                        alg.z1 += (alg.z2 - 3 * cP.wo * e_eso_rbf) * dt;
+                        alg.z2 += (alg.z3 - 3 * cP.wo*cP.wo * e_eso_rbf + cP.b0 * alg.u_prev) * dt;
+                        alg.z3 += (-Math.pow(cP.wo, 3) * e_eso_rbf) * dt;
+                        
+                        const centers = [-2, -1, 0, 1, 2];
+                        let h_rbf = centers.map(c_pt => Math.exp(-Math.pow(x - target - c_pt, 2) / 2));
+                        let f_nn = 0;
+                        for(let i=0; i<5; i++) f_nn += alg.w_rbf[i] * h_rbf[i];
+                        
+                        for(let i=0; i<5; i++) alg.w_rbf[i] += cP.n_lr * e_eso_rbf * h_rbf[i] * dt;
+                        
+                        u = (cP.wc*cP.wc*(target - alg.z1) - 2*cP.wc*alg.z2 - alg.z3 - f_nn) / cP.b0; break;
+                    }
+                    case 'Artstein-Reduction': {
+                        const d_a = Math.min(199, Math.floor(cP.delay_a));
+                        let integral_u = 0;
+                        for (let j = 0; j < d_a; j++) {
+                            integral_u += Math.exp(-0.1 * j * DT) * (alg.u_delay_buf[j] || 0) * DT;
+                        }
+                        const z_art = x + integral_u; 
+                        u = cP.kp * (target - z_art) - cP.kd * v + pP.k*target; break;
+                    }
+                    case 'Quantized-Ctrl': {
+                        const u_qc_raw = cP.kp * e - cP.kd * v + pP.k*target;
+                        u = Math.round(u_qc_raw / cP.q_step) * cP.q_step; break;
+                    }
+                    case 'Event-Triggered-MPC': {
+                        const x_pred_et = x + v * cP.t_pred;
+                        if (Math.abs(x - (alg.x_prev||x)) > cP.et_limit || currTime < dt*2) {
+                            alg.u_hold = (target - x_pred_et)/(cP.t_pred*cP.t_pred) + cP.lambda*target - 20*v;
+                            alg.x_prev = x;
+                        }
+                        u = alg.u_hold; break;
+                    }
+
+                    case 'FO-PD': {
+                        const wi_pd = calcGLWeights(cP.mu, 50); let dE_pd = 0;
+                        for(let j=0; j<50; j++) dE_pd += wi_pd[j] * (alg.e_hist[j]||0);
+                        u = cP.kp * e + cP.kd * (dE_pd / Math.pow(dt, cP.mu)) + pP.k*target; break;
+                    }
+                    case 'Nonlinear-Power-ADRC': {
+                        const fe = alg.z1 - x;
+                        alg.z1 += (alg.z2 - cP.wo * Math.pow(Math.abs(fe), cP.alpha)*Math.sign(fe)) * dt;
+                        alg.z2 += (alg.u_prev - cP.wo*cP.wo * Math.pow(Math.abs(fe), cP.alpha)*Math.sign(fe)) * dt;
+                        u = (cP.wc*cP.wc*(target - alg.z1) - 2*cP.wc*v - alg.z2) / cP.b0; break;
+                    }
+                    case 'Implicit-Euler-Ctrl': {
+                        const s_ie = 5.0 * e - v;
+                        u = pP.k*x + pP.c*v - pP.m*5.0*v + (s_ie / (1 + cP.lambda * dt)) * 50.0; break;
+                    }
+                    case 'Lorenz-Coupled': {
+                        alg.l_x_l += (10 * (alg.l_y_l - alg.l_x_l)) * dt;
+                        alg.l_y_l += (alg.l_x_l * (cP.rho - alg.l_z_l) - alg.l_y_l) * dt;
+                        alg.l_z_l += (alg.l_x_l * alg.l_y_l - (8/3) * alg.l_z_l) * dt;
+                        u = cP.kp * (0.1 * alg.l_x_l - e) - cP.kd * v + pP.k * x; 
+                        alg.ref_display = target - 0.1 * alg.l_x_l; break;
+                    }
+                    case 'Speed-Gradient': {
+                        alg.integral += -cP.gamma_sg * (-v) * dt;
+                        u = cP.q_weight * alg.integral - 10*v + pP.k*target; break;
+                    }
+                    case 'Feedback-Passivation': {
+                        u = pP.k*x + pP.c*v - cP.kp*x + cP.kp*target - cP.kv*v; break;
+                    }
+
+                    default: u = 0;
+                }
+                
+                const MAX_FORCE = loopStateRef.current.actuatorLimit;
+                u = Math.max(-MAX_FORCE, Math.min(MAX_FORCE, u));
+                alg.u_prev = u;
+                return u;
+            };
+
+            const updatePhysics = () => {
+                const state = stateRef.current;
+                const { physParams: pP, ctrlParams: cP, method: currMethod, targetMode, contDisturbance, sensorNoise, coulombFriction, actuatorDeadzone, plantDelay } = loopStateRef.current;
+                
+                let activeTarget = pP.target;
+                if (targetMode === 'sine') activeTarget = 5.0 + 4.0 * Math.sin(1.0 * state.t);
+                else if (targetMode === 'square') activeTarget = 5.0 + 3.0 * Math.sign(Math.sin(0.5 * state.t));
+
+                const nx = sensorNoise > 0 ? sensorNoise * gaussNoise() : 0;
+                const nv = sensorNoise > 0 ? (sensorNoise * 2.0) * gaussNoise() : 0;
+
+                let u = calculateControlOutput(DT, state.x + nx, state.v + nv, activeTarget, pP, cP, state.alg, currMethod, state.t);
+                
+                state.alg.rmse_sum = (state.alg.rmse_sum || 0) + Math.pow(activeTarget - state.x, 2);
+                state.alg.energy = (state.alg.energy || 0) + Math.pow(u, 2) * DT;
+                state.alg.ticks = (state.alg.ticks || 0) + 1;
+
+                state.alg.u_hw_buffer.unshift(u);
+                if (state.alg.u_hw_buffer.length > 100) state.alg.u_hw_buffer.pop();
+                
+                let u_delayed = state.alg.u_hw_buffer[Math.min(99, Math.floor(plantDelay))] || 0;
+                let u_actual = u_delayed;
+
+                if (Math.abs(u_actual) < actuatorDeadzone) {
+                    u_actual = 0;
+                } else {
+                    u_actual = u_actual > 0 ? u_actual - actuatorDeadzone : u_actual + actuatorDeadzone;
+                }
+
+                let ext_f = contDisturbance;
+                if (impulseRef.current > 0) {
+                    ext_f += impulseRef.current; 
+                    impulseRef.current *= 0.8; 
+                    if (impulseRef.current < 1.0) impulseRef.current = 0;
+                }
+
+                let friction_force = 0;
+                if (coulombFriction > 0) {
+                    if (Math.abs(state.v) > 0.01) {
+                        friction_force = -coulombFriction * Math.sign(state.v);
+                    } else {
+                        const driving_f = u_actual + ext_f - (pP.k * state.x);
+                        if (Math.abs(driving_f) < coulombFriction) {
+                            friction_force = -driving_f; 
+                        } else {
+                            friction_force = -coulombFriction * Math.sign(driving_f);
+                        }
+                    }
+                }
+
+                const f_net = u_actual + ext_f + friction_force - (pP.k * state.x) - (pP.c * state.v);
+                const a = f_net / pP.m;
+                
+                state.v += a * DT;
+                state.x += state.v * DT;
+                state.t += DT;
+
+                const err = Math.abs(state.x - pP.target);
+                const absV = Math.abs(state.v);
+                if (err < 0.05 && absV < 0.05) {
+                    chartStateRef.current.freezeTimer += DT;
+                } else {
+                    chartStateRef.current.freezeTimer = 0;
+                    chartStateRef.current.frozen = false; 
+                }
+
+                if (chartStateRef.current.freezeTimer > 2.0 && impulseRef.current === 0) {
+                    chartStateRef.current.frozen = true;
+                }
+                
+                if (!chartStateRef.current.frozen) {
+                    historyRef.current.push({ 
+                        t: state.t, x: state.x, u: u, target: activeTarget, 
+                        ref: state.alg.ref_display || state.alg.xm 
+                    });
+                    if (historyRef.current.length > 2500) {
+                        chartStateRef.current.frozen = true;
+                    }
+                }
+            };
+
+            const animate = () => {
+                if (loopStateRef.current.running) updatePhysics();
+                drawSimulation();
+                drawCharts();
+                requestRef.current = requestAnimationFrame(animate);
+            };
+
+            useEffect(() => {
+                resetAlgState(method, physParams.target);
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, []);
+
+            const drawSimulation = () => {
+                const canvas = simCanvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const w = canvas.width, h = canvas.height;
+                
+                ctx.clearRect(0, 0, w, h);
+                const mapX = (val) => (val + 2) / 14 * w; 
+                const groundY = h - 50;
+                
+                // 绘制背景网格线 (护眼浅色适配)
+                ctx.beginPath(); ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)'; ctx.lineWidth = 1;
+                for (let i = 0; i <= 14; i++) {
+                    const px = (i / 14) * w;
+                    ctx.moveTo(px, 0); ctx.lineTo(px, groundY);
+                }
+                for (let i = 0; i <= 5; i++) {
+                    const py = (i / 5) * groundY;
+                    ctx.moveTo(0, py); ctx.lineTo(w, py);
+                }
+                ctx.stroke();
+
+                // 绘制地平线
+                ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(w, groundY);
+                ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.stroke();
+                ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif';
+                for (let i = 0; i <= 10; i+=1) {
+                    const px = mapX(i);
+                    ctx.fillRect(px, groundY, 2, 5); ctx.fillText(i, px - 3, groundY + 18);
+                }
+
+                let activeTarget = loopStateRef.current.physParams.target;
+                if (loopStateRef.current.targetMode === 'sine') activeTarget = 5.0 + 4.0 * Math.sin(1.0 * stateRef.current.t);
+                else if (loopStateRef.current.targetMode === 'square') activeTarget = 5.0 + 3.0 * Math.sign(Math.sin(0.5 * stateRef.current.t));
+                const targetX = mapX(activeTarget);
+                
+                // 目标线 (柔绿)
+                ctx.beginPath(); ctx.setLineDash([6, 4]); ctx.moveTo(targetX, 20); ctx.lineTo(targetX, groundY);
+                ctx.strokeStyle = '#10B981'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+                
+                ctx.fillStyle = '#10B981'; 
+                ctx.beginPath(); ctx.moveTo(targetX, groundY); ctx.lineTo(targetX - 6, groundY - 8); ctx.lineTo(targetX + 6, groundY - 8); ctx.fill();
+                ctx.fillText('TARGET', targetX - 18, 15);
+
+                const blockX = mapX(stateRef.current.x);
+                const boxSize = 40;
+                
+                // 绘制方块 (柔蓝/柔红)
+                ctx.shadowColor = impulseRef.current > 10 ? 'rgba(244,63,94,0.3)' : 'rgba(59,130,246,0.3)'; 
+                ctx.shadowBlur = 15; ctx.shadowOffsetY = 4;
+                ctx.fillStyle = impulseRef.current > 10 ? '#ef4444' : '#3b82f6';
+                ctx.fillRect(blockX - boxSize/2, groundY - boxSize, boxSize, boxSize);
+                ctx.shadowColor = 'transparent';
+                
+                // 绘制弹簧
+                ctx.beginPath(); ctx.moveTo(0, groundY - boxSize/2);
+                const segments = 24, step = blockX / segments;
+                for (let i = 1; i <= segments; i++) {
+                    ctx.lineTo(step * i, groundY - boxSize/2 + (i % 2 === 0 ? 6 : -6));
+                }
+                ctx.lineTo(blockX - boxSize/2, groundY - boxSize/2);
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.stroke();
+
+                ctx.fillStyle = 'white'; ctx.font = 'bold 11px sans-serif'; 
+                ctx.fillText(stateRef.current.x.toFixed(2) + 'm', blockX - 16, groundY - boxSize/2 + 4);
+            };
+
+            const drawCharts = () => {
+                const posCanvas = posChartCanvasRef.current;
+                const ctrlCanvas = ctrlChartCanvasRef.current;
+                if (!posCanvas || !ctrlCanvas) return;
+                
+                const posCtx = posCanvas.getContext('2d');
+                const ctrlCtx = ctrlCanvas.getContext('2d');
+                
+                const w = posCanvas.width;
+                const hPos = posCanvas.height;
+                const hCtrl = ctrlCanvas.height;
+                
+                posCtx.clearRect(0, 0, w, hPos);
+                ctrlCtx.clearRect(0, 0, w, hCtrl);
+                
+                // 中心线 (护眼浅色适配)
+                posCtx.strokeStyle = '#e2e8f0'; posCtx.lineWidth = 1; posCtx.beginPath(); posCtx.moveTo(0, hPos/2); posCtx.lineTo(w, hPos/2); posCtx.stroke();
+                ctrlCtx.strokeStyle = '#e2e8f0'; ctrlCtx.lineWidth = 1; ctrlCtx.beginPath(); ctrlCtx.moveTo(0, hCtrl/2); ctrlCtx.lineTo(w, hCtrl/2); ctrlCtx.stroke();
+
+                if (historyRef.current.length < 2) return;
+
+                const t_start = historyRef.current[0].t;
+                const t_end = historyRef.current[historyRef.current.length - 1].t;
+                const t_span = Math.max(6.0, t_end - t_start); 
+
+                const plotLine = (ctx, h, dataKey, color, offset, scale, isDash = false, lineWidth = 2) => {
+                    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
+                    if (isDash) ctx.setLineDash([4, 4]); else ctx.setLineDash([]);
+                    historyRef.current.forEach((pt, i) => {
+                        const x = ((pt.t - t_start) / t_span) * w;
+                        const y = (h/2) - (pt[dataKey] - offset) * scale;
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    });
+                    ctx.stroke(); ctx.setLineDash([]);
+                };
+
+                const POS_OFFSET = 5; 
+                const POS_SCALE = 12;
+                
+                plotLine(posCtx, hPos, 'target', '#10B981', POS_OFFSET, POS_SCALE, false, 1.5);
+                plotLine(posCtx, hPos, 'x', '#3b82f6', POS_OFFSET, POS_SCALE, false, 2.5);
+                
+                if(['MRAC', 'L1', 'Flatness', 'InputShaping', 'PPC', 'PTC', 'ESO-Follow', 'MRAC-MIT', 'Topological', 'Posicast', 'Funnel', 'TimeVary-BLF', 'Lorenz-Coupled'].includes(loopStateRef.current.method)) {
+                    plotLine(posCtx, hPos, 'ref', '#8b5cf6', POS_OFFSET, POS_SCALE, true, 1.5); 
+                }
+                
+                if(loopStateRef.current.method === 'PPC') {
+                    posCtx.beginPath(); posCtx.strokeStyle = '#e879f9'; posCtx.lineWidth = 1; posCtx.setLineDash([3, 3]);
+                    historyRef.current.forEach((pt, i) => {
+                        const x = ((pt.t - t_start) / t_span) * w;
+                        const y_up = (hPos/2) - (pt.target + pt.ref - POS_OFFSET) * POS_SCALE;
+                        if (i === 0) posCtx.moveTo(x, y_up); else posCtx.lineTo(x, y_up);
+                    });
+                    posCtx.stroke();
+                    posCtx.beginPath();
+                    historyRef.current.forEach((pt, i) => {
+                        const x = ((pt.t - t_start) / t_span) * w;
+                        const y_dn = (hPos/2) - (pt.target - pt.ref - POS_OFFSET) * POS_SCALE;
+                        if (i === 0) posCtx.moveTo(x, y_dn); else posCtx.lineTo(x, y_dn);
+                    });
+                    posCtx.stroke(); posCtx.setLineDash([]);
+                }
+
+                const CTRL_OFFSET = 0;
+                const CTRL_SCALE = 0.35;
+                
+                plotLine(ctrlCtx, hCtrl, 'u', '#ef4444', CTRL_OFFSET, CTRL_SCALE, false, 2);
+
+                if (chartStateRef.current.frozen) {
+                    posCtx.fillStyle = '#64748b'; posCtx.font = 'bold 12px sans-serif';
+                    posCtx.fillText("● RECORDED", w - 85, 25);
+                    ctrlCtx.fillStyle = '#64748b'; ctrlCtx.font = 'bold 12px sans-serif';
+                    ctrlCtx.fillText("● RECORDED", w - 85, 25);
+                }
+
+                // 性能指标绘制 (护眼色适配)
+                posCtx.fillStyle = '#0f766e'; posCtx.font = 'bold 13px monospace';
+                const rmse = stateRef.current.alg.ticks ? Math.sqrt(stateRef.current.alg.rmse_sum / stateRef.current.alg.ticks).toFixed(3) : '0.000';
+                posCtx.fillText(`RMSE: ${rmse}`, 15, 25);
+                
+                ctrlCtx.fillStyle = '#be123c'; ctrlCtx.font = 'bold 13px monospace';
+                const energy = stateRef.current.alg.energy ? stateRef.current.alg.energy.toFixed(1) : '0.0';
+                ctrlCtx.fillText(`Energy (∫u²dt): ${energy} J`, 15, 25);
+            };
+
+            const handleMethodChange = (e) => {
+                const newMethod = e.target.value;
+                setMethod(newMethod);
+                setCtrlParams(getDefaultParams(newMethod));
+                resetSim(newMethod, physParams.target);
+            };
+
+            const resetSim = (m = method, target = physParams.target, initX = initialX) => {
+                stateRef.current = { x: initX, v: 0, t: 0, alg: {} };
+                resetAlgState(m, target);
+                historyRef.current = [];
+                chartStateRef.current = { frozen: false, freezeTimer: 0 };
+                impulseRef.current = 0;
+                setRunning(true);
+            };
+
+            const handleParamChange = (key, val, isPhys = false) => {
+                if (isPhys) setPhysParams(prev => ({...prev, [key]: parseFloat(val)}));
+                else setCtrlParams(prev => ({...prev, [key]: parseFloat(val)}));
+                historyRef.current = [];
+                chartStateRef.current = { frozen: false, freezeTimer: 0 };
+            };
+
+            const groupedMethods = Object.entries(CONTROLLER_CONFIGS).reduce((acc, [key, conf]) => {
+                (acc[conf.category] = acc[conf.category] || []).push({ key, ...conf });
+                return acc;
+            }, {});
+            const sortedCategories = Object.keys(groupedMethods).sort();
+
+            return (
+                <div className="flex flex-col h-screen text-slate-700 font-sans overflow-hidden selection:bg-teal-200">
+                {/* Header: 浅色/护眼玻璃拟物 */}
+                <header className="bg-[#C7EDCC]/90 backdrop-blur-lg border-b border-white/60 px-6 py-4 flex items-center justify-between z-20 shrink-0 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-gradient-to-br from-teal-400 to-emerald-500 p-2.5 rounded-xl text-white shadow-sm">
+                            <ActivityIcon size={24} />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-extrabold text-teal-900 tracking-tight drop-shadow-sm">控制理论模拟器</h1>
+                            <p className="text-xs text-teal-700/80 font-medium tracking-wide">V2.0</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                        <select value={method} onChange={handleMethodChange} className="bg-white/80 border border-teal-300/50 text-teal-800 text-sm rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-400 block p-2.5 font-bold max-w-[280px] shadow-sm cursor-pointer transition-shadow hover:shadow-md">
+                            {sortedCategories.map(category => (
+                            <optgroup key={category} label={`[ ${category.substring(4)} ]`} className="font-bold text-slate-500 bg-white">
+                                {groupedMethods[category].map(m => (
+                                <option key={m.key} value={m.key} className="text-slate-800">{m.name}</option>
+                                ))}
+                            </optgroup>
+                            ))}
+                        </select>
+                        
+                        <button onClick={() => setRunning(!running)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all shadow-sm active:scale-95 ${running ? 'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200' : 'bg-teal-500 text-white hover:bg-teal-600 border border-teal-400/50 shadow-sm'}`}>
+                            {running ? <PauseIcon size={18}/> : <PlayIcon size={18}/>}
+                            {running ? "暂停演算" : "启动演算"}
+                        </button>
+
+                        <button onClick={triggerDisturbance} className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 font-bold shadow-sm transition-all active:scale-95 border border-rose-400/50">
+                            <ZapIcon size={18}/> 突发扰动
+                        </button>
+
+                        <button onClick={() => resetSim()} className="flex items-center gap-2 px-4 py-2.5 bg-white text-slate-600 rounded-lg hover:bg-slate-50 font-bold transition-all active:scale-95 border border-slate-300">
+                            <RefreshCwIcon size={18}/> 重置状态
+                        </button>
+                    </div>
+                </header>
+
+                {/* 围绕式三栏主布局 */}
+                <div className="flex flex-1 overflow-hidden p-4 gap-4">
+                    
+                    {/* 左侧栏: 控制器参数与架构解析 */}
+                    <div className="w-[340px] flex flex-col gap-4 overflow-y-auto tech-scroll shrink-0 pb-10">
+                        {/* 算法解说区 */}
+                        <div className="glass-panel rounded-xl p-5 flex flex-col gap-4 shrink-0">
+                            <div>
+                                <h3 className="text-lg font-extrabold text-teal-700 mb-2 flex items-center gap-2"><InfoIcon size={20}/> {CONTROLLER_CONFIGS[method].name}</h3>
+                                <p className="text-sm text-slate-600 font-medium leading-relaxed text-justify">{CONTROLLER_CONFIGS[method].desc}</p>
+                            </div>
+                            
+                            <div className="p-3.5 bg-white/60 rounded-lg border border-teal-200 shadow-inner">
+                                <span className="text-[10px] font-extrabold text-teal-600 uppercase tracking-widest block mb-2">Governing Equation</span>
+                                <div className="font-mono text-[13px] text-teal-900 math-font whitespace-pre-wrap leading-relaxed">
+                                    {CONTROLLER_CONFIGS[method].eq}
+                                </div>
+                            </div>
+                            
+                            <div className="p-3.5 bg-amber-50/80 rounded-lg border border-amber-200">
+                                <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest block mb-2 flex items-center gap-1">💡 调参指引 (Tuning Guide)</span>
+                                <div className="text-xs font-medium text-amber-900 leading-relaxed text-justify">
+                                    {CONTROLLER_CONFIGS[method].tuning}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 核心算法参数调节 */}
+                        <div className="glass-panel rounded-xl p-5 shrink-0">
+                            <h3 className="text-xs font-extrabold text-teal-700 uppercase tracking-widest mb-6 border-l-2 border-teal-500 pl-2">控制律增益矩阵</h3>
+                            <div className="space-y-5">
+                                {Object.keys(ctrlParams).map(key => {
+                                    const [defVal, min, max, step] = CONTROLLER_CONFIGS[method].params[key];
+                                    return (
+                                    <div key={key} className="group">
+                                        <div className="flex justify-between mb-2 items-end">
+                                            <label className="text-xs font-bold text-slate-500 group-hover:text-teal-600 transition-colors">{key.toUpperCase()}</label>
+                                            <span className="text-[10px] font-mono font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">{ctrlParams[key].toFixed(2)}</span>
+                                        </div>
+                                        <input 
+                                            type="range" min={min} max={max} step={step} value={ctrlParams[key]} 
+                                            onChange={(e) => handleParamChange(key, e.target.value, false)}
+                                            className="w-full accent-teal-500"
+                                        />
+                                    </div>
+                                )})}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 中间主视窗: 动画与波形图 */}
+                    <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+                        {/* 物理仿真视窗 */}
+                        <div className="glass-panel rounded-xl p-2 flex flex-col relative overflow-hidden group shrink-0">
+                            <div className="px-4 py-2 flex justify-between items-center mb-1">
+                                <span className="font-bold text-teal-700 flex items-center gap-2 tracking-wide"><SettingsIcon size={16}/> 刚体动力学流形</span>
+                                <span className="text-xs text-indigo-700 font-bold bg-indigo-50 px-2 py-1 rounded border border-indigo-200 math-font">
+                                    {"m·ẍ + c·ẋ + k·x = u(t-τ) + d(t) - F_{fric}"}
+                                </span>
+                            </div>
+                            <div className="relative h-[220px] w-full bg-[#FDFBF7] rounded-lg overflow-hidden border border-slate-200 shadow-inner">
+                                <canvas ref={simCanvasRef} width={900} height={220} className="w-full h-full block" />
+                            </div>
+                            {impulseRef.current > 10 && <div className="absolute inset-0 bg-rose-500/10 pointer-events-none animate-pulse rounded-xl mix-blend-screen"></div>}
+                        </div>
+
+                        {/* 波形视窗 */}
+                        <div className="glass-panel rounded-xl p-2 flex-1 flex flex-col gap-2 overflow-hidden">
+                            <div className="px-4 py-1.5 flex justify-between items-center shrink-0">
+                                <span className="font-bold text-teal-700 tracking-wide">时间序列观测器</span>
+                            </div>
+                            
+                            <div className="flex flex-row flex-1 gap-3 overflow-hidden px-2 pb-2">
+                                <div className="relative w-1/2 h-full bg-[#FDFBF7] rounded-lg border border-slate-200 flex flex-col overflow-hidden shadow-inner">
+                                    <div className="absolute top-2 left-3 text-[10px] text-slate-600 font-bold z-10 bg-white/80 backdrop-blur px-2 py-1 rounded border border-slate-200">相空间轨迹 (Position)</div>
+                                    <canvas ref={posChartCanvasRef} width={600} height={300} className="w-full h-full object-fill block" />
+                                </div>
+
+                                <div className="relative w-1/2 h-full bg-[#FDFBF7] rounded-lg border border-slate-200 flex flex-col overflow-hidden shadow-inner">
+                                     <div className="absolute top-2 left-3 text-[10px] text-slate-600 font-bold z-10 bg-white/80 backdrop-blur px-2 py-1 rounded border border-slate-200">执行器能耗 (Control Input)</div>
+                                    <canvas ref={ctrlChartCanvasRef} width={600} height={300} className="w-full h-full object-fill block" />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-center gap-8 py-1.5 text-xs font-bold text-slate-600 shrink-0 bg-white/60 rounded-lg mx-2 mb-1 border border-slate-200">
+                                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#3b82f6] rounded-[4px] shadow-sm"></span> 实际位置 (x)</span>
+                                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#10B981] rounded-[4px] shadow-sm"></span> 目标指令 (r)</span>
+                                {['MRAC', 'L1', 'Flatness', 'InputShaping', 'PPC', 'PTC', 'ESO-Follow', 'MRAC-MIT', 'Topological', 'Posicast', 'Funnel', 'TimeVary-BLF', 'Lorenz-Coupled'].includes(method) && 
+                                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 border-2 border-[#8b5cf6] border-dashed rounded-[4px]"></span> 辅助参考流形</span>
+                                }
+                                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#ef4444] rounded-[4px] shadow-sm"></span> 真实控制力 (u)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 右侧栏: 物理对象与环境边界 */}
+                    <div className="w-[340px] flex flex-col gap-4 overflow-y-auto tech-scroll shrink-0 pb-10">
+                        
+                        {/* 目标轨迹与外部环境 */}
+                        <div className="glass-panel rounded-xl p-5">
+                            <h3 className="text-xs font-extrabold text-blue-600 uppercase tracking-widest mb-5 flex items-center gap-2 border-l-2 border-blue-600 pl-2">🎯 目标轨迹与外部环境</h3>
+                            <div className="space-y-5">
+                                <div>
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500">指令波形 (Target Mode)</label>
+                                    </div>
+                                    <select 
+                                        value={targetMode} 
+                                        onChange={(e) => { setTargetMode(e.target.value); resetSim(); }}
+                                        className="w-full bg-white border border-blue-200 text-blue-700 font-bold text-xs rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                                    >
+                                        <option value="step">固定阶跃 (Step)</option>
+                                        <option value="sine">正弦波追踪 (Sine Wave)</option>
+                                        <option value="square">方波跳变 (Square Wave)</option>
+                                    </select>
+                                </div>
+                                <div className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-blue-600">目标基准点 (Target X)</label>
+                                        <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">{physParams['target']}m</span>
+                                    </div>
+                                    <input type="range" min="0" max="10" step="0.5" value={physParams['target']} onChange={(e) => handleParamChange('target', e.target.value, true)} className="w-full accent-blue-500"/>
+                                </div>
+                                <div className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-blue-600">初始位置偏置 (Init X)</label>
+                                        <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">{initialX}m</span>
+                                    </div>
+                                    <input type="range" min="-10" max="10" step="0.5" value={initialX} onChange={(e) => { const val = parseFloat(e.target.value); setInitialX(val); resetSim(method, physParams.target, val); }} className="w-full accent-blue-500"/>
+                                </div>
+                                <div className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-orange-600">恒定风扰 (Const Dist)</label>
+                                        <span className="text-[10px] font-mono font-bold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">{contDisturbance}N</span>
+                                    </div>
+                                    <input type="range" min="-50" max="50" step="1" value={contDisturbance} onChange={(e) => { setContDisturbance(parseFloat(e.target.value)); chartStateRef.current.frozen = false; chartStateRef.current.freezeTimer = 0; }} className="w-full accent-orange-500"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 硬件非理想限制 */}
+                        <div className="glass-panel rounded-xl p-5 border-rose-200/50">
+                            <h3 className="text-xs font-extrabold text-rose-600 uppercase tracking-widest mb-5 flex items-center gap-2 border-l-2 border-rose-600 pl-2">🔧 硬件非理想限制</h3>
+                            <div className="space-y-5">
+                                <div className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-purple-600">执行器饱和限幅 (Saturation)</label>
+                                        <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">±{actuatorLimit}N</span>
+                                    </div>
+                                    <input type="range" min="10" max="500" step="10" value={actuatorLimit} onChange={(e) => { setActuatorLimit(parseFloat(e.target.value)); chartStateRef.current.frozen = false; chartStateRef.current.freezeTimer = 0; }} className="w-full accent-purple-500"/>
+                                </div>
+                                <div className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-rose-600">控制死区盲区 (Deadzone)</label>
+                                        <span className="text-[10px] font-mono font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">±{actuatorDeadzone}N</span>
+                                    </div>
+                                    <input type="range" min="0" max="50" step="1" value={actuatorDeadzone} onChange={(e) => { setActuatorDeadzone(parseFloat(e.target.value)); chartStateRef.current.frozen = false; chartStateRef.current.freezeTimer = 0; }} className="w-full accent-rose-500"/>
+                                </div>
+                                <div className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-indigo-600">系统纯时间滞后 (Delay)</label>
+                                        <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">{(plantDelay * 0.02).toFixed(2)}s</span>
+                                    </div>
+                                    <input type="range" min="0" max="50" step="1" value={plantDelay} onChange={(e) => { setPlantDelay(parseFloat(e.target.value)); chartStateRef.current.frozen = false; chartStateRef.current.freezeTimer = 0; }} className="w-full accent-indigo-500"/>
+                                </div>
+                                <div className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-amber-600">库仑干摩擦阻力 (Coulomb)</label>
+                                        <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">{coulombFriction}N</span>
+                                    </div>
+                                    <input type="range" min="0" max="20" step="1" value={coulombFriction} onChange={(e) => { setCoulombFriction(parseFloat(e.target.value)); chartStateRef.current.frozen = false; chartStateRef.current.freezeTimer = 0; }} className="w-full accent-amber-500"/>
+                                </div>
+                                <div className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-teal-600">传感器高斯噪声 (Noise)</label>
+                                        <span className="text-[10px] font-mono font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">{sensorNoise.toFixed(2)}</span>
+                                    </div>
+                                    <input type="range" min="0" max="0.5" step="0.01" value={sensorNoise} onChange={(e) => { setSensorNoise(parseFloat(e.target.value)); chartStateRef.current.frozen = false; chartStateRef.current.freezeTimer = 0; }} className="w-full accent-teal-400"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 被控物理对象 */}
+                        <div className="glass-panel rounded-xl p-5 border-emerald-200/50 mb-6">
+                            <h3 className="text-xs font-extrabold text-emerald-600 uppercase tracking-widest mb-5 flex items-center gap-2 border-l-2 border-emerald-600 pl-2">📦 被控物理对象属性</h3>
+                            <div className="space-y-5">
+                                {[
+                                {key: 'm', name: '系统质量 (Mass)', unit: 'kg', min: 0.5, max: 10, step: 0.1},
+                                {key: 'c', name: '黏性阻尼系数 (Damping)', unit: '', min: 0, max: 5, step: 0.1},
+                                {key: 'k', name: '弹簧刚度系数 (Spring)', unit: 'N/m', min: 0, max: 10, step: 0.5}
+                                ].map(p => (
+                                <div key={p.key} className="group">
+                                    <div className="flex justify-between mb-2 items-end">
+                                        <label className="text-xs font-bold text-slate-500 group-hover:text-emerald-600 transition-colors">{p.name}</label>
+                                        <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">{physParams[p.key]}{p.unit}</span>
+                                    </div>
+                                    <input 
+                                        type="range" min={p.min} max={p.max} step={p.step} value={physParams[p.key]} 
+                                        onChange={(e) => handleParamChange(p.key, e.target.value, true)}
+                                        className="w-full accent-emerald-500"
+                                    />
+                                </div>
+                                ))}
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ControlSimulator />);
