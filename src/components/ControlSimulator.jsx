@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CONTROLLER_CONFIGS, DT, INITIAL_PARAMS, getDefaultParams } from '../simulator/controllerConfigs.js';
+import { DICTIONARY_DATA } from '../simulator/dictionaryData.js';
 import { calcGLWeights, fal, gaussNoise, getMembership } from '../simulator/math.js';
 import {
   applyActuatorDeadzone,
@@ -23,6 +24,8 @@ const ActivityIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0
         const SettingsIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>);
         const InfoIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>);
         const ZapIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>);
+const BookIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"></path></svg>);
+const CloseIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>);
 const GitHubIcon = ({ size }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.66.5 12.02c0 5.09 3.29 9.4 7.86 10.92.58.11.79-.25.79-.56 0-.27-.01-1.18-.02-2.14-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.05-.71.08-.69.08-.69 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.97.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.69 0-1.26.45-2.3 1.19-3.12-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.19 1.19a10.94 10.94 0 0 1 5.8 0c2.21-1.5 3.18-1.19 3.18-1.19.63 1.59.24 2.76.12 3.05.74.82 1.19 1.86 1.19 3.12 0 4.42-2.69 5.4-5.25 5.68.41.36.78 1.06.78 2.14 0 1.55-.01 2.79-.01 3.17 0 .31.21.68.8.56A11.53 11.53 0 0 0 23.5 12C23.5 5.66 18.35.5 12 .5Z"></path></svg>);
 
 const REPOSITORY_URL = 'https://github.com/cool-koala/Control-Theory-Simulator';
@@ -42,13 +45,14 @@ export default function ControlSimulator() {
 
                 return window.localStorage.getItem('controller-simulator-language') || 'zh';
             });
-            
+            const [showDictionary, setShowDictionary] = useState(false);
+
             const [targetMode, setTargetMode] = useState('step');
             const [contDisturbance, setContDisturbance] = useState(0);
             const [initialX, setInitialX] = useState(0);
             const [actuatorLimit, setActuatorLimit] = useState(200);
             const [sensorNoise, setSensorNoise] = useState(0);
-            
+
             const [coulombFriction, setCoulombFriction] = useState(0);
             const [actuatorDeadzone, setActuatorDeadzone] = useState(0);
             const [plantDelay, setPlantDelay] = useState(0);
@@ -61,6 +65,7 @@ export default function ControlSimulator() {
             const simCanvasRef = useRef(null);
             const posChartCanvasRef = useRef(null);
             const ctrlChartCanvasRef = useRef(null);
+            const phaseChartCanvasRef = useRef(null);
             const requestRef = useRef();
             const uiStateRef = useRef({ language: 'zh', text: UI_TEXT.zh });
             const t = UI_TEXT[language];
@@ -77,10 +82,10 @@ export default function ControlSimulator() {
             const resetAlgState = (_methodName, currTarget = 5.0) => {
                 stateRef.current.alg = {
                     integral: 0, e_prev: 0, e_prev2: 0, u_prev: 0, u_prev2: 0, x_prev: 0, v_prev: 0,
-                    d_hat: 0, st_int: 0, 
-                    z1: 0, z2: 0, z3: 0, xm: 0, vm: 0, theta_r: 0, theta_x: 0, theta_v: 0, 
-                    u_l1_filter: 0, w1: 0.33, w2: 0.33, w3: 0.33, 
-                    m_hat: 1.0, k_hat: 1.0, c_hat: 0.5, 
+                    d_hat: 0, st_int: 0,
+                    z1: 0, z2: 0, z3: 0, xm: 0, vm: 0, theta_r: 0, theta_x: 0, theta_v: 0,
+                    u_l1_filter: 0, w1: 0.33, w2: 0.33, w3: 0.33,
+                    m_hat: 1.0, k_hat: 1.0, c_hat: 0.5,
                     vm_imc: 0, xm_imc: 0, phi: 0.5, K_hat: 0, F_hat_f: 0,
                     e_hist: new Array(50).fill(0), z_dsc: 0, u_esc_bias: 0,
                     P_k: [[1,0],[0,1]], x_kf: 0, v_kf: 0, u_qft_prev: 0, theta_hat_ii: 0,
@@ -89,22 +94,22 @@ export default function ControlSimulator() {
                     z0_lev: 0, z1_lev: 0,
                     rmse_sum: 0, energy: 0, ticks: 0,
                     V_belbic: 0, W_belbic: 0,
-                    wc_adp: 1.0, wa_adp: 40.0, wd_adp: 10.0, 
+                    wc_adp: 1.0, wa_adp: 40.0, wd_adp: 10.0,
                     ilc_memory: new Array(1000).fill(0), ilc_idx: 0,
                     rep_queue: new Array(50).fill(0), rep_idx: 0,
                     switch_state: 0, last_switch_time: -999,
                     target_history: [],
-                    
+
                     x_delay_buf: new Array(200).fill(0),
                     u_delay_buf: new Array(200).fill(0),
                     u_hw_buffer: new Array(100).fill(0),
                     H_hormone: 0, P_sdre: 10.0, chi_nuss: 0, amd_x: 0, amd_v: 0, fault_time: 0,
                     l_x: 0, l_v: 0, mj_mode: 1, st_next: 0, f_int: 0, u_hold: 0,
-                    
+
                     // RBF, RL, RLS 特定状态
                     w_rbf: new Array(5).fill(0.1), w_actor: [0, 0, 0], w_critic: [0, 0, 0],
                     P_rls: [[100, 0], [0, 100]], theta_rls: [1.0, 0.5],
-                    
+
                     l_x_l: 0.1, l_y_l: 0.1, l_z_l: 0.1, pf_particles: new Array(20).fill(0), f_adrc_z: 0
                 };
             };
@@ -113,7 +118,7 @@ export default function ControlSimulator() {
             useEffect(() => { loopStateRef.current = { running, method, physParams, ctrlParams, targetMode, contDisturbance, actuatorLimit, sensorNoise, coulombFriction, actuatorDeadzone, plantDelay }; }, [running, method, physParams, ctrlParams, targetMode, contDisturbance, actuatorLimit, sensorNoise, coulombFriction, actuatorDeadzone, plantDelay]);
 
             const triggerDisturbance = () => {
-                impulseRef.current = 150.0; 
+                impulseRef.current = 150.0;
                 chartStateRef.current.frozen = false;
                 chartStateRef.current.freezeTimer = 0;
             };
@@ -121,12 +126,12 @@ export default function ControlSimulator() {
             const calculateControlOutput = (dt, x, v, target, pP, cP, alg, currentMethod, currTime) => {
                 const e = target - x;
                 let u = 0;
-                
+
                 let target_changed = false;
                 if (Math.abs(target - alg.last_target) > 0.01) {
                     alg.last_target = target;
                     alg.t_target = 0; alg.xd = x; alg.vd = v; alg.ilc_idx = 0;
-                    if(alg.e0 === undefined) { alg.e0 = e; alg.v0 = v; } 
+                    if(alg.e0 === undefined) { alg.e0 = e; alg.v0 = v; }
                     target_changed = true;
                 }
                 alg.t_target += dt;
@@ -134,10 +139,10 @@ export default function ControlSimulator() {
                 if (currentMethod === 'InputShaping' || currentMethod === 'Posicast') {
                     if (target_changed || alg.target_history.length === 0) alg.target_history.push({ t: currTime, val: target });
                 }
-                
+
                 alg.x_delay_buf.unshift(x); alg.x_delay_buf.pop();
                 alg.u_delay_buf.unshift(alg.u_prev||0); alg.u_delay_buf.pop();
-                
+
                 alg.e_hist.unshift(e); alg.e_hist.pop();
 
                 switch (currentMethod) {
@@ -197,11 +202,11 @@ export default function ControlSimulator() {
                     }
                     case 'IMP-Servo': {
                         alg.integral += e * dt;
-                        const k_imp_x = Math.sqrt(cP.q_x / cP.r_u); const k_imp_i = Math.sqrt(cP.q_e / cP.r_u); const k_imp_v = Math.sqrt(2 * pP.m * k_imp_x); 
+                        const k_imp_x = Math.sqrt(cP.q_x / cP.r_u); const k_imp_i = Math.sqrt(cP.q_e / cP.r_u); const k_imp_v = Math.sqrt(2 * pP.m * k_imp_x);
                         u = -k_imp_x * x - k_imp_v * v + k_imp_i * alg.integral + pP.k * target; break;
                     }
                     case 'Preview': {
-                        let f_sum = 0; for(let i=0; i<5; i++) f_sum += Math.pow(0.8, i) * target; 
+                        let f_sum = 0; for(let i=0; i<5; i++) f_sum += Math.pow(0.8, i) * target;
                         u = cP.kp * e - cP.kd * v + cP.k_prev * f_sum; break;
                     }
 
@@ -233,7 +238,7 @@ export default function ControlSimulator() {
                         u = cP.kp * Math.pow(Math.abs(e), cP.alpha) * Math.sign(e) - cP.kd * Math.pow(Math.abs(v), beta_cftc) * Math.sign(v) + pP.k * target; break;
                     }
 
-                    case 'SMC': { 
+                    case 'SMC': {
                         const s_smc = cP.c_surface * e - v;
                         const u_eq_smc = pP.k * x + pP.c * v - pP.m * cP.c_surface * v;
                         u = u_eq_smc + cP.k_gain * Math.max(-1, Math.min(1, s_smc / cP.eps)); break;
@@ -305,7 +310,7 @@ export default function ControlSimulator() {
                     }
                     case 'MFAC': {
                         const e_star = e - cP.kd * v; const y_star = x + cP.kd * v;
-                        const d_u = alg.u_prev - alg.u_prev2; const d_y = alg.x_prev !== undefined ? (y_star - alg.x_prev) : 0; 
+                        const d_u = alg.u_prev - alg.u_prev2; const d_y = alg.x_prev !== undefined ? (y_star - alg.x_prev) : 0;
                         if (Math.abs(d_u) > 1e-5) alg.phi = alg.phi + (cP.eta * d_u / (cP.mu + d_u * d_u)) * (d_y - alg.phi * d_u);
                         if (alg.phi < 0.001 || alg.phi > 10.0) alg.phi = 0.5;
                         u = alg.u_prev + (cP.rho * alg.phi / (cP.lambda + alg.phi * alg.phi)) * e_star;
@@ -317,7 +322,7 @@ export default function ControlSimulator() {
                         u = (-alg.F_hat_f + cP.kp * e - cP.kd * v) / cP.alpha; alg.v_prev = v; break;
                     }
                     case 'U-Model': {
-                        const y_pred = x + v * dt + (alg.u_prev / pP.m) * dt * dt; const jacobian = (dt * dt) / pP.m; 
+                        const y_pred = x + v * dt + (alg.u_prev / pP.m) * dt * dt; const jacobian = (dt * dt) / pP.m;
                         u = alg.u_prev + cP.step_nr * (target - y_pred) / jacobian + cP.kp * e - cP.kd * v; break;
                     }
                     case 'ESC': {
@@ -325,24 +330,24 @@ export default function ControlSimulator() {
                         u = 20 * e - 10 * v + alg.u_esc_bias + cP.amp * Math.sin(cP.omega * stateRef.current.t); break;
                     }
                     case 'BELBIC': {
-                        const SI = cP.w_e * e - cP.w_v * v; const Rew = e - 0.1 * v; 
+                        const SI = cP.w_e * e - cP.w_v * v; const Rew = e - 0.1 * v;
                         const A_bel = Math.max(0, alg.V_belbic * SI); const O_bel = alg.W_belbic * SI;
-                        alg.V_belbic = Math.max(0, alg.V_belbic + cP.a_A * SI * Math.max(0, Rew - A_bel) * dt); 
-                        alg.W_belbic += cP.a_O * SI * (A_bel - O_bel - Rew) * dt; 
+                        alg.V_belbic = Math.max(0, alg.V_belbic + cP.a_A * SI * Math.max(0, Rew - A_bel) * dt);
+                        alg.W_belbic += cP.a_O * SI * (A_bel - O_bel - Rew) * dt;
                         u = A_bel - O_bel + pP.k * target; break;
                     }
                     case 'Linear-Actor-Critic': {
                         const phi = [e, v, e*v]; // 特征向量
                         let V_val = 0, u_actor = 0;
                         for(let i=0; i<3; i++) { V_val += alg.w_critic[i]*phi[i]; u_actor += alg.w_actor[i]*phi[i]; }
-                        
+
                         const r_reward = - (e*e + 0.1*v*v);
                         const e_next = target - (x + v*dt); const v_next = v + ((u_actor - pP.k*x - pP.c*v)/pP.m)*dt;
                         const phi_next = [e_next, v_next, e_next*v_next];
                         let V_next = 0; for(let i=0; i<3; i++) V_next += alg.w_critic[i]*phi_next[i];
-                        
+
                         const td_err = r_reward + cP.gamma_rl * V_next - V_val;
-                        
+
                         for(let i=0; i<3; i++) {
                             alg.w_critic[i] += cP.alpha_c * td_err * phi[i] * dt;
                             alg.w_actor[i] += cP.alpha_a * td_err * phi[i] * dt;
@@ -350,8 +355,8 @@ export default function ControlSimulator() {
                         u = u_actor + pP.k * target; break;
                     }
                     case 'Gradient-PID': {
-                        const grad_kp = -e * e; 
-                        const grad_kd = e * v;  
+                        const grad_kp = -e * e;
+                        const grad_kd = e * v;
                         alg.init_kp = Math.max(1, (alg.init_kp || cP.kp0) - cP.gamma_p * grad_kp * dt);
                         alg.init_kd = Math.max(0.1, (alg.init_kd || 10) - cP.gamma_d * grad_kd * dt);
                         u = alg.init_kp * e - alg.init_kd * v + pP.k*target; break;
@@ -366,7 +371,7 @@ export default function ControlSimulator() {
                     case 'IMC': {
                         const am_imc = (alg.u_prev - pP.k * alg.xm_imc - pP.c * alg.vm_imc) / pP.m;
                         alg.vm_imc += am_imc * dt; alg.xm_imc += alg.vm_imc * dt;
-                        const r_mod = target - (x - alg.xm_imc); 
+                        const r_mod = target - (x - alg.xm_imc);
                         alg.integral = Math.max(-50, Math.min(50, alg.integral + (r_mod - x) * dt));
                         u = cP.kp * (r_mod - x) + cP.ki * alg.integral - cP.kd * v; break;
                     }
@@ -377,20 +382,20 @@ export default function ControlSimulator() {
                     }
                     case 'NL-ADRC': {
                         const e_eso = alg.z1 - x;
-                        alg.z1 += (alg.z2 - 3 * cP.w_o * e_eso) * dt; 
+                        alg.z1 += (alg.z2 - 3 * cP.w_o * e_eso) * dt;
                         alg.z2 += (alg.z3 - 3 * cP.w_o * cP.w_o * fal(e_eso, 0.5, cP.delta) + cP.b0 * alg.u_prev) * dt;
                         alg.z3 += (-Math.pow(cP.w_o, 3) * fal(e_eso, 0.25, cP.delta)) * dt;
                         u = (cP.w_c * cP.w_c * fal(target - alg.z1, 0.75, cP.delta) - 2 * cP.w_c * alg.z2 - alg.z3) / cP.b0; break;
                     }
                     case 'ARC': {
-                        const s_arc = cP.c * e - v; 
+                        const s_arc = cP.c * e - v;
                         alg.m_hat = Math.max(0.5, Math.min(10, alg.m_hat + cP.gamma * s_arc * (-cP.c * v) * dt));
                         u = alg.m_hat * (-cP.c * v) + pP.k * x + pP.c * v + cP.k_s * s_arc + cP.k_n * Math.sign(s_arc); break;
                     }
                     case 'ESO-SMC': {
                         const e_obs = alg.z1 - x;
-                        alg.z1 += (alg.z2 - 3 * cP.w_o * e_obs) * dt; 
-                        alg.z2 += (alg.z3 - 3 * cP.w_o * cP.w_o * e_obs + cP.b0 * alg.u_prev) * dt; 
+                        alg.z1 += (alg.z2 - 3 * cP.w_o * e_obs) * dt;
+                        alg.z2 += (alg.z3 - 3 * cP.w_o * cP.w_o * e_obs + cP.b0 * alg.u_prev) * dt;
                         alg.z3 += (-Math.pow(cP.w_o, 3) * e_obs) * dt;
                         const s_eso = cP.c_surface * (target - alg.z1) - alg.z2;
                         const u_eq_eso = (-cP.c_surface * alg.z2 - alg.z3) / cP.b0;
@@ -405,7 +410,7 @@ export default function ControlSimulator() {
                         const u_baseline = cP.wn * cP.wn * (target - x) - 2 * cP.zeta * cP.wn * v + pP.k * target;
                         const u_raw_l1 = u_baseline - alg.theta_x * pP.m;
                         alg.u_l1_filter += ((u_raw_l1 - alg.u_l1_filter) / cP.t_lpf) * dt;
-                        u = alg.u_l1_filter; 
+                        u = alg.u_l1_filter;
                         const a_m_l1 = cP.wn * cP.wn * target - 2 * cP.zeta * cP.wn * alg.vm - cP.wn * cP.wn * alg.xm;
                         alg.vm += a_m_l1 * dt; alg.xm += alg.vm * dt; break;
                     }
@@ -430,12 +435,12 @@ export default function ControlSimulator() {
 
                     case 'PPC': {
                         const rho_t = (cP.rho_0 - cP.rho_inf) * Math.exp(-cP.l * alg.t_target) + cP.rho_inf;
-                        const safe_eps = Math.max(-0.99, Math.min(0.99, e / rho_t)); 
+                        const safe_eps = Math.max(-0.99, Math.min(0.99, e / rho_t));
                         const z_ppc = 0.5 * Math.log((1 + safe_eps) / (1 - safe_eps));
                         u = cP.kp * z_ppc - cP.kd * v + pP.k * target; alg.ref_display = rho_t; break;
                     }
                     case 'BLF': {
-                        const e_blf = Math.max(-cP.kb + 0.05, Math.min(cP.kb - 0.05, e)); 
+                        const e_blf = Math.max(-cP.kb + 0.05, Math.min(cP.kb - 0.05, e));
                         u = cP.kp * (e_blf / (cP.kb * cP.kb - e_blf * e_blf)) - cP.kd * v + pP.k * target; break;
                     }
                     case 'ETC': {
@@ -446,7 +451,7 @@ export default function ControlSimulator() {
                     }
                     case 'Switched': {
                         const V_lyap = 0.5 * e * e + 0.5 * v * v;
-                        if (currTime - alg.last_switch_time > cP.dwell) { 
+                        if (currTime - alg.last_switch_time > cP.dwell) {
                             if (V_lyap > 1.0 && alg.switch_state !== 1) { alg.switch_state = 1; alg.last_switch_time = currTime; }
                             else if (V_lyap <= 1.0 && alg.switch_state !== 2) { alg.switch_state = 2; alg.last_switch_time = currTime; }
                         }
@@ -473,7 +478,7 @@ export default function ControlSimulator() {
                     }
                     case 'TimeVary-BLF': {
                         const kb_t = (cP.kb0 - cP.kb_inf) * Math.exp(-cP.lb * alg.t_target) + cP.kb_inf;
-                        const e_tvb = Math.max(-kb_t + 0.05, Math.min(kb_t - 0.05, e)); 
+                        const e_tvb = Math.max(-kb_t + 0.05, Math.min(kb_t - 0.05, e));
                         u = cP.kp * (e_tvb / (kb_t * kb_t - e_tvb * e_tvb)) - cP.kd * v + pP.k * target; alg.ref_display = kb_t; break;
                     }
                     case 'Integral-BLF': {
@@ -489,25 +494,25 @@ export default function ControlSimulator() {
                             const hist = alg.target_history[i];
                             if (currTime >= hist.t) r_shaped += A1 * hist.val;
                             if (currTime >= hist.t + delay) r_shaped += A2 * hist.val;
-                            break; 
+                            break;
                         }
                         u = cP.kp * (r_shaped - x) - cP.kd * v + pP.k * r_shaped; alg.ref_display = r_shaped; break;
                     }
                     case 'ILC': {
                         if (alg.ilc_idx < 1000) {
-                            alg.ilc_memory[alg.ilc_idx] += cP.gamma_ilc * e; 
+                            alg.ilc_memory[alg.ilc_idx] += cP.gamma_ilc * e;
                             u = alg.ilc_memory[alg.ilc_idx] + cP.kp_base * e + pP.k * target; alg.ilc_idx++;
                         } else { u = cP.kp_base * e + pP.k * target; } break;
                     }
                     case 'Repetitive': {
                         alg.rep_queue[alg.rep_idx] = e;
-                        const e_delayed = alg.rep_queue[(alg.rep_idx + 1) % 50]; 
+                        const e_delayed = alg.rep_queue[(alg.rep_idx + 1) % 50];
                         const u_rc = cP.q_filter * alg.u_prev + cP.k_rc * e_delayed;
                         u = u_rc + 20 * e - 10 * v + pP.k * target; alg.rep_idx = (alg.rep_idx + 1) % 50; break;
                     }
                     case 'GainSched': {
-                        const alpha_gs = Math.max(0, Math.min(1, Math.abs(e) / cP.bnd)); 
-                        const kp_curr = alpha_gs * cP.kp_far + (1 - alpha_gs) * cP.kp_near; 
+                        const alpha_gs = Math.max(0, Math.min(1, Math.abs(e) / cP.bnd));
+                        const kp_curr = alpha_gs * cP.kp_far + (1 - alpha_gs) * cP.kp_near;
                         u = kp_curr * e - 20 * v + pP.k * target; break;
                     }
                     case 'SmithPredict': {
@@ -527,7 +532,7 @@ export default function ControlSimulator() {
                         const ec_norm = Math.max(-1, Math.min(1, -v / 5));
                         const mem_e = getMembership(e_norm);
                         const mem_ec = getMembership(ec_norm);
-                        
+
                         let rule_P = 0, sum_W = 0;
                         const w_NN = Math.min(mem_e.N, mem_ec.N); rule_P += w_NN * 1; sum_W += w_NN;
                         const w_NZ = Math.min(mem_e.N, mem_ec.Z); rule_P += w_NZ * 1; sum_W += w_NZ;
@@ -538,10 +543,10 @@ export default function ControlSimulator() {
                         const w_PN = Math.min(mem_e.P, mem_ec.N); rule_P += w_PN * 0; sum_W += w_PN;
                         const w_PZ = Math.min(mem_e.P, mem_ec.Z); rule_P += w_PZ * -1; sum_W += w_PZ;
                         const w_PP = Math.min(mem_e.P, mem_ec.P); rule_P += w_PP * -1; sum_W += w_PP;
-                        
+
                         const defuzz_P = sum_W > 0 ? (rule_P / sum_W) : 0;
                         const dk_p = cP.range * Math.abs(defuzz_P);
-                        
+
                         u = (cP.kp0 + dk_p) * e + cP.ki0 * alg.integral - cP.kd0 * v; break;
                     }
                     case 'NeuralPID': {
@@ -555,7 +560,7 @@ export default function ControlSimulator() {
                         const ec_norm_f = Math.max(-1, Math.min(1, -v * cP.kec));
                         const mf_e = getMembership(e_norm_f);
                         const mf_ec = getMembership(ec_norm_f);
-                        
+
                         let rule_U = 0, sum_Wf = 0;
                         const evalRule = (w_e, w_ec, out_val) => {
                             const w = Math.min(w_e, w_ec);
@@ -564,7 +569,7 @@ export default function ControlSimulator() {
                         evalRule(mf_e.N, mf_ec.N, -1); evalRule(mf_e.N, mf_ec.Z, -1); evalRule(mf_e.N, mf_ec.P, 0);
                         evalRule(mf_e.Z, mf_ec.N, -1); evalRule(mf_e.Z, mf_ec.Z, 0);  evalRule(mf_e.Z, mf_ec.P, 1);
                         evalRule(mf_e.P, mf_ec.N, 0);  evalRule(mf_e.P, mf_ec.Z, 1);  evalRule(mf_e.P, mf_ec.P, 1);
-                        
+
                         const defuzz_U = sum_Wf > 0 ? (rule_U / sum_Wf) : 0;
                         u = defuzz_U * cP.gain * 50; break;
                     }
@@ -573,7 +578,7 @@ export default function ControlSimulator() {
                     }
 
                     case 'TubeMPC': {
-                        const x_mpc_star = x + v * cP.t_pred; 
+                        const x_mpc_star = x + v * cP.t_pred;
                         const u_mpc_star = (target - x_mpc_star) / (cP.t_pred*cP.t_pred) + cP.lambda * target;
                         u = u_mpc_star + cP.k_anc * (x_mpc_star - x) - 20 * v; break;
                     }
@@ -587,21 +592,21 @@ export default function ControlSimulator() {
                     }
                     case 'RLS-Adaptive': {
                         const y_curr = x;
-                        const y_past = alg.x_delay_buf[2]; 
+                        const y_past = alg.x_delay_buf[2];
                         const u_past = alg.u_delay_buf[2];
                         const phi_rls = [y_past, u_past];
-                        
+
                         const P_phi = [
                             alg.P_rls[0][0]*phi_rls[0] + alg.P_rls[0][1]*phi_rls[1],
                             alg.P_rls[1][0]*phi_rls[0] + alg.P_rls[1][1]*phi_rls[1]
                         ];
                         const den_rls = cP.rls_lambda + phi_rls[0]*P_phi[0] + phi_rls[1]*P_phi[1];
                         const K_rls = [P_phi[0]/den_rls, P_phi[1]/den_rls];
-                        
+
                         const err_rls = y_curr - (alg.theta_rls[0]*phi_rls[0] + alg.theta_rls[1]*phi_rls[1]);
                         alg.theta_rls[0] += K_rls[0] * err_rls;
                         alg.theta_rls[1] += K_rls[1] * err_rls;
-                        
+
                         const P_new = [[0,0],[0,0]];
                         for(let i=0; i<2; i++) {
                             for(let j=0; j<2; j++) {
@@ -609,12 +614,12 @@ export default function ControlSimulator() {
                             }
                         }
                         alg.P_rls = P_new;
-                        
+
                         const b_est = Math.max(0.001, alg.theta_rls[1]);
                         u = (cP.w_bw * e - alg.theta_rls[0] * v) / b_est + pP.k*target; break;
                     }
                     case 'Robust-NL-Damping': {
-                        const robust_d = cP.gamma_d * Math.abs(e) * v; 
+                        const robust_d = cP.gamma_d * Math.abs(e) * v;
                         u = cP.kp_nom * e - (20 + cP.gamma_d + Math.abs(robust_d)) * v + pP.k * target; break;
                     }
                     case 'NDOB': {
@@ -644,14 +649,14 @@ export default function ControlSimulator() {
                         alg.z1 += (alg.z2 - 3 * cP.wo * e_eso_rbf) * dt;
                         alg.z2 += (alg.z3 - 3 * cP.wo*cP.wo * e_eso_rbf + cP.b0 * alg.u_prev) * dt;
                         alg.z3 += (-Math.pow(cP.wo, 3) * e_eso_rbf) * dt;
-                        
+
                         const centers = [-2, -1, 0, 1, 2];
                         let h_rbf = centers.map(c_pt => Math.exp(-Math.pow(x - target - c_pt, 2) / 2));
                         let f_nn = 0;
                         for(let i=0; i<5; i++) f_nn += alg.w_rbf[i] * h_rbf[i];
-                        
+
                         for(let i=0; i<5; i++) alg.w_rbf[i] += cP.n_lr * e_eso_rbf * h_rbf[i] * dt;
-                        
+
                         u = (cP.wc*cP.wc*(target - alg.z1) - 2*cP.wc*alg.z2 - alg.z3 - f_nn) / cP.b0; break;
                     }
                     case 'Artstein-Reduction': {
@@ -660,7 +665,7 @@ export default function ControlSimulator() {
                         for (let j = 0; j < d_a; j++) {
                             integral_u += Math.exp(-0.1 * j * DT) * (alg.u_delay_buf[j] || 0) * DT;
                         }
-                        const z_art = x + integral_u; 
+                        const z_art = x + integral_u;
                         u = cP.kp * (target - z_art) - cP.kd * v + pP.k*target; break;
                     }
                     case 'Quantized-Ctrl': {
@@ -695,7 +700,7 @@ export default function ControlSimulator() {
                         alg.l_x_l += (10 * (alg.l_y_l - alg.l_x_l)) * dt;
                         alg.l_y_l += (alg.l_x_l * (cP.rho - alg.l_z_l) - alg.l_y_l) * dt;
                         alg.l_z_l += (alg.l_x_l * alg.l_y_l - (8/3) * alg.l_z_l) * dt;
-                        u = cP.kp * (0.1 * alg.l_x_l - e) - cP.kd * v + pP.k * x; 
+                        u = cP.kp * (0.1 * alg.l_x_l - e) - cP.kd * v + pP.k * x;
                         alg.ref_display = target - 0.1 * alg.l_x_l; break;
                     }
                     case 'Speed-Gradient': {
@@ -708,7 +713,7 @@ export default function ControlSimulator() {
 
                     default: u = 0;
                 }
-                
+
                 const MAX_FORCE = loopStateRef.current.actuatorLimit;
                 u = Math.max(-MAX_FORCE, Math.min(MAX_FORCE, u));
                 alg.u_prev = u;
@@ -718,28 +723,28 @@ export default function ControlSimulator() {
             const updatePhysics = () => {
                 const state = stateRef.current;
                 const { physParams: pP, ctrlParams: cP, method: currMethod, targetMode, contDisturbance, sensorNoise, coulombFriction, actuatorDeadzone, plantDelay } = loopStateRef.current;
-                
+
                 const activeTarget = getTargetSignal(targetMode, pP.target, state.t);
 
                 const nx = sensorNoise > 0 ? sensorNoise * gaussNoise() : 0;
                 const nv = sensorNoise > 0 ? (sensorNoise * 2.0) * gaussNoise() : 0;
 
                 const uCommand = calculateControlOutput(DT, state.x + nx, state.v + nv, activeTarget, pP, cP, state.alg, currMethod, state.t);
-                
+
                 state.alg.rmse_sum = (state.alg.rmse_sum || 0) + Math.pow(activeTarget - state.x, 2);
                 state.alg.ticks = (state.alg.ticks || 0) + 1;
 
                 state.alg.u_hw_buffer.unshift(uCommand);
                 if (state.alg.u_hw_buffer.length > 100) state.alg.u_hw_buffer.pop();
-                
+
                 const uDelayed = getDelayedCommand(state.alg.u_hw_buffer, plantDelay);
                 const uActual = applyActuatorDeadzone(uDelayed, actuatorDeadzone);
                 state.alg.energy = (state.alg.energy || 0) + Math.pow(uActual, 2) * DT;
 
                 let ext_f = contDisturbance;
                 if (impulseRef.current > 0) {
-                    ext_f += impulseRef.current; 
-                    impulseRef.current *= 0.8; 
+                    ext_f += impulseRef.current;
+                    impulseRef.current *= 0.8;
                     if (impulseRef.current < 1.0) impulseRef.current = 0;
                 }
 
@@ -750,7 +755,7 @@ export default function ControlSimulator() {
                     } else {
                         const driving_f = uActual + ext_f - (pP.k * state.x);
                         if (Math.abs(driving_f) < coulombFriction) {
-                            friction_force = -driving_f; 
+                            friction_force = -driving_f;
                         } else {
                             friction_force = -coulombFriction * Math.sign(driving_f);
                         }
@@ -759,7 +764,7 @@ export default function ControlSimulator() {
 
                 const f_net = uActual + ext_f + friction_force - (pP.k * state.x) - (pP.c * state.v);
                 const a = f_net / pP.m;
-                
+
                 state.v += a * DT;
                 state.x += state.v * DT;
                 state.t += DT;
@@ -768,17 +773,18 @@ export default function ControlSimulator() {
                     chartStateRef.current.freezeTimer += DT;
                 } else {
                     chartStateRef.current.freezeTimer = 0;
-                    chartStateRef.current.frozen = false; 
+                    chartStateRef.current.frozen = false;
                 }
 
                 if (chartStateRef.current.freezeTimer > 2.0 && impulseRef.current === 0) {
                     chartStateRef.current.frozen = true;
                 }
-                
+
                 if (!chartStateRef.current.frozen) {
-                    historyRef.current.push({ 
+                    historyRef.current.push({
                         t: state.t,
                         x: state.x,
+                        v: state.v,
                         uCmd: uCommand,
                         uActual,
                         target: activeTarget,
@@ -808,11 +814,11 @@ export default function ControlSimulator() {
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
                 const w = canvas.width, h = canvas.height;
-                
+
                 ctx.clearRect(0, 0, w, h);
-                const mapX = (val) => (val + 2) / 14 * w; 
+                const mapX = (val) => (val + 2) / 14 * w;
                 const groundY = h - 50;
-                
+
                 // 绘制背景网格线 (护眼浅色适配)
                 ctx.beginPath(); ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)'; ctx.lineWidth = 1;
                 for (let i = 0; i <= 14; i++) {
@@ -836,25 +842,25 @@ export default function ControlSimulator() {
 
                 const activeTarget = getTargetSignal(loopStateRef.current.targetMode, loopStateRef.current.physParams.target, stateRef.current.t);
                 const targetX = mapX(activeTarget);
-                
+
                 // 目标线 (柔绿)
                 ctx.beginPath(); ctx.setLineDash([6, 4]); ctx.moveTo(targetX, 20); ctx.lineTo(targetX, groundY);
                 ctx.strokeStyle = '#10B981'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
-                
-                ctx.fillStyle = '#10B981'; 
+
+                ctx.fillStyle = '#10B981';
                 ctx.beginPath(); ctx.moveTo(targetX, groundY); ctx.lineTo(targetX - 6, groundY - 8); ctx.lineTo(targetX + 6, groundY - 8); ctx.fill();
                 ctx.fillText(uiStateRef.current.text.targetMarker, targetX - 18, 15);
 
                 const blockX = mapX(stateRef.current.x);
                 const boxSize = 40;
-                
+
                 // 绘制方块 (柔蓝/柔红)
-                ctx.shadowColor = impulseRef.current > 10 ? 'rgba(244,63,94,0.3)' : 'rgba(59,130,246,0.3)'; 
+                ctx.shadowColor = impulseRef.current > 10 ? 'rgba(244,63,94,0.3)' : 'rgba(59,130,246,0.3)';
                 ctx.shadowBlur = 15; ctx.shadowOffsetY = 4;
                 ctx.fillStyle = impulseRef.current > 10 ? '#ef4444' : '#3b82f6';
                 ctx.fillRect(blockX - boxSize/2, groundY - boxSize, boxSize, boxSize);
                 ctx.shadowColor = 'transparent';
-                
+
                 // 绘制弹簧
                 ctx.beginPath(); ctx.moveTo(0, groundY - boxSize/2);
                 const segments = 24, step = blockX / segments;
@@ -864,34 +870,45 @@ export default function ControlSimulator() {
                 ctx.lineTo(blockX - boxSize/2, groundY - boxSize/2);
                 ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.stroke();
 
-                ctx.fillStyle = 'white'; ctx.font = 'bold 11px sans-serif'; 
+                ctx.fillStyle = 'white'; ctx.font = 'bold 11px sans-serif';
                 ctx.fillText(stateRef.current.x.toFixed(2) + 'm', blockX - 16, groundY - boxSize/2 + 4);
             };
 
             const drawCharts = () => {
                 const posCanvas = posChartCanvasRef.current;
                 const ctrlCanvas = ctrlChartCanvasRef.current;
-                if (!posCanvas || !ctrlCanvas) return;
-                
+                const phaseCanvas = phaseChartCanvasRef.current;
+                if (!posCanvas || !ctrlCanvas || !phaseCanvas) return;
+
                 const posCtx = posCanvas.getContext('2d');
                 const ctrlCtx = ctrlCanvas.getContext('2d');
-                
+                const phaseCtx = phaseCanvas.getContext('2d');
+
                 const w = posCanvas.width;
                 const hPos = posCanvas.height;
                 const hCtrl = ctrlCanvas.height;
-                
+                const hPhase = phaseCanvas.height;
+
                 posCtx.clearRect(0, 0, w, hPos);
                 ctrlCtx.clearRect(0, 0, w, hCtrl);
-                
+                phaseCtx.clearRect(0, 0, phaseCanvas.width, hPhase);
+
                 // 中心线 (护眼浅色适配)
                 posCtx.strokeStyle = '#e2e8f0'; posCtx.lineWidth = 1; posCtx.beginPath(); posCtx.moveTo(0, hPos/2); posCtx.lineTo(w, hPos/2); posCtx.stroke();
                 ctrlCtx.strokeStyle = '#e2e8f0'; ctrlCtx.lineWidth = 1; ctrlCtx.beginPath(); ctrlCtx.moveTo(0, hCtrl/2); ctrlCtx.lineTo(w, hCtrl/2); ctrlCtx.stroke();
+                phaseCtx.strokeStyle = '#e2e8f0'; phaseCtx.lineWidth = 1;
+                phaseCtx.beginPath();
+                phaseCtx.moveTo(phaseCanvas.width / 2, 0);
+                phaseCtx.lineTo(phaseCanvas.width / 2, hPhase);
+                phaseCtx.moveTo(0, hPhase / 2);
+                phaseCtx.lineTo(phaseCanvas.width, hPhase / 2);
+                phaseCtx.stroke();
 
                 if (historyRef.current.length < 2) return;
 
                 const t_start = historyRef.current[0].t;
                 const t_end = historyRef.current[historyRef.current.length - 1].t;
-                const t_span = Math.max(6.0, t_end - t_start); 
+                const t_span = Math.max(6.0, t_end - t_start);
 
                 const plotLine = (ctx, h, dataKey, color, offset, scale, isDash = false, lineWidth = 2) => {
                     ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
@@ -904,16 +921,16 @@ export default function ControlSimulator() {
                     ctx.stroke(); ctx.setLineDash([]);
                 };
 
-                const POS_OFFSET = 5; 
+                const POS_OFFSET = 5;
                 const POS_SCALE = 12;
-                
+
                 plotLine(posCtx, hPos, 'target', '#10B981', POS_OFFSET, POS_SCALE, false, 1.5);
                 plotLine(posCtx, hPos, 'x', '#3b82f6', POS_OFFSET, POS_SCALE, false, 2.5);
-                
+
                 if (shouldShowReference(loopStateRef.current.method)) {
-                    plotLine(posCtx, hPos, 'ref', '#8b5cf6', POS_OFFSET, POS_SCALE, true, 1.5); 
+                    plotLine(posCtx, hPos, 'ref', '#8b5cf6', POS_OFFSET, POS_SCALE, true, 1.5);
                 }
-                
+
                 if(loopStateRef.current.method === 'PPC') {
                     posCtx.beginPath(); posCtx.strokeStyle = '#e879f9'; posCtx.lineWidth = 1; posCtx.setLineDash([3, 3]);
                     historyRef.current.forEach((pt, i) => {
@@ -933,21 +950,52 @@ export default function ControlSimulator() {
 
                 const CTRL_OFFSET = 0;
                 const CTRL_SCALE = 0.35;
-                
+
                 plotLine(ctrlCtx, hCtrl, 'uActual', '#ef4444', CTRL_OFFSET, CTRL_SCALE, false, 2);
+
+                const xs = historyRef.current.map(pt => pt.x);
+                const vs = historyRef.current.map(pt => pt.v);
+                const xMin = Math.min(...xs, loopStateRef.current.physParams.target) - 0.5;
+                const xMax = Math.max(...xs, loopStateRef.current.physParams.target) + 0.5;
+                const vBound = Math.max(1, ...vs.map(value => Math.abs(value))) * 1.15;
+                const mapPhaseX = (value) => ((value - xMin) / Math.max(0.001, xMax - xMin)) * phaseCanvas.width;
+                const mapPhaseY = (value) => (hPhase / 2) - (value / vBound) * (hPhase * 0.42);
+
+                phaseCtx.beginPath();
+                phaseCtx.strokeStyle = '#0f766e';
+                phaseCtx.lineWidth = 2.3;
+                historyRef.current.forEach((pt, i) => {
+                    const px = mapPhaseX(pt.x);
+                    const py = mapPhaseY(pt.v);
+                    if (i === 0) phaseCtx.moveTo(px, py); else phaseCtx.lineTo(px, py);
+                });
+                phaseCtx.stroke();
+
+                const lastPoint = historyRef.current[historyRef.current.length - 1];
+                phaseCtx.fillStyle = '#0f766e';
+                phaseCtx.beginPath();
+                phaseCtx.arc(mapPhaseX(lastPoint.x), mapPhaseY(lastPoint.v), 4, 0, Math.PI * 2);
+                phaseCtx.fill();
+
+                phaseCtx.fillStyle = '#64748b';
+                phaseCtx.font = 'bold 11px monospace';
+                phaseCtx.fillText('x', phaseCanvas.width - 18, hPhase / 2 - 6);
+                phaseCtx.fillText('v', phaseCanvas.width / 2 + 7, 16);
 
                 if (chartStateRef.current.frozen) {
                     posCtx.fillStyle = '#64748b'; posCtx.font = 'bold 12px sans-serif';
                     posCtx.fillText(uiStateRef.current.text.recorded, w - 85, 25);
                     ctrlCtx.fillStyle = '#64748b'; ctrlCtx.font = 'bold 12px sans-serif';
                     ctrlCtx.fillText(uiStateRef.current.text.recorded, w - 85, 25);
+                    phaseCtx.fillStyle = '#64748b'; phaseCtx.font = 'bold 12px sans-serif';
+                    phaseCtx.fillText(uiStateRef.current.text.recorded, phaseCanvas.width - 85, 25);
                 }
 
                 // 性能指标绘制 (护眼色适配)
                 posCtx.fillStyle = '#0f766e'; posCtx.font = 'bold 13px monospace';
                 const rmse = stateRef.current.alg.ticks ? Math.sqrt(stateRef.current.alg.rmse_sum / stateRef.current.alg.ticks).toFixed(3) : '0.000';
                 posCtx.fillText(`${uiStateRef.current.text.rmse}: ${rmse}`, 15, 25);
-                
+
                 ctrlCtx.fillStyle = '#be123c'; ctrlCtx.font = 'bold 13px monospace';
                 const energy = stateRef.current.alg.energy ? stateRef.current.alg.energy.toFixed(1) : '0.0';
                 ctrlCtx.fillText(`${uiStateRef.current.text.energy}: ${energy} J`, 15, 25);
@@ -1000,7 +1048,7 @@ export default function ControlSimulator() {
                             <p className="mt-1 max-w-[520px] text-[11px] font-medium leading-relaxed text-teal-800/85">{t.appSlogan}</p>
                         </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-4">
                         <select value={method} onChange={handleMethodChange} className="bg-white/80 border border-teal-300/50 text-teal-800 text-sm rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-400 block p-2.5 font-bold max-w-[280px] shadow-sm cursor-pointer transition-shadow hover:shadow-md">
                             {sortedCategories.map(category => (
@@ -1011,7 +1059,14 @@ export default function ControlSimulator() {
                             </optgroup>
                             ))}
                         </select>
-                        
+
+                        <button
+                            onClick={() => setShowDictionary(true)}
+                            className="flex items-center gap-2 rounded-lg border border-teal-300/70 bg-white/80 px-4 py-2.5 text-sm font-extrabold text-teal-800 shadow-sm transition-all hover:border-teal-500 hover:bg-white active:scale-95"
+                        >
+                            <BookIcon size={18}/> {t.symbolDictionary}
+                        </button>
+
                         <button onClick={() => setRunning(!running)} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all shadow-sm active:scale-95 ${running ? 'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200' : 'bg-teal-500 text-white hover:bg-teal-600 border border-teal-400/50 shadow-sm'}`}>
                             {running ? <PauseIcon size={18}/> : <PlayIcon size={18}/>}
                             {running ? t.pause : t.start}
@@ -1029,7 +1084,17 @@ export default function ControlSimulator() {
 
                 {/* 围绕式三栏主布局 */}
                 <div className="flex flex-1 flex-col overflow-hidden p-4 gap-4">
-                    <div className="glass-panel flex flex-col items-center justify-center rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-50/90 via-white/80 to-teal-50/90 px-4 py-4 text-center shadow-sm">
+                    <div className="glass-panel relative flex flex-col items-center justify-center rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-50/90 via-white/80 to-teal-50/90 px-4 py-4 pr-16 text-center shadow-sm">
+                        <a
+                            href={REPOSITORY_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={t.communityCta}
+                            title={t.communityCta}
+                            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-emerald-300 bg-white/95 text-emerald-900 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-white hover:shadow-md"
+                        >
+                            <GitHubIcon size={22} />
+                        </a>
                         <p className="max-w-4xl text-sm font-semibold leading-relaxed text-emerald-900">{t.communityBanner}</p>
                         <a
                             href={REPOSITORY_URL}
@@ -1037,13 +1102,12 @@ export default function ControlSimulator() {
                             rel="noreferrer"
                             aria-label={t.communityCta}
                             title={t.communityCta}
-                            className="mt-3 inline-flex flex-col items-center justify-center rounded-2xl border border-emerald-300 bg-white/90 px-5 py-3 text-emerald-900 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-white hover:shadow-md"
+                            className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300 bg-white/90 px-4 py-2 text-sm font-extrabold text-emerald-900 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-white hover:shadow-md"
                         >
-                            <GitHubIcon size={36} />
-                            <span className="mt-2 text-sm font-extrabold">{t.communityCta}</span>
-                            <span className="mt-1 text-xs font-medium text-emerald-700/80">{t.communityButtonHint}</span>
+                            <GitHubIcon size={18} />
+                            <span>{t.communityCta}</span>
                         </a>
-                        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                        <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
                             <a
                                 href={STAR_URL}
                                 target="_blank"
@@ -1080,20 +1144,32 @@ export default function ControlSimulator() {
                                 <h3 className="text-lg font-extrabold text-teal-700 mb-2 flex items-center gap-2"><InfoIcon size={20}/> {CONTROLLER_CONFIGS[method].name}</h3>
                                 <p className="text-sm text-slate-600 font-medium leading-relaxed text-justify">{CONTROLLER_CONFIGS[method].desc}</p>
                             </div>
-                            
+
                             <div className="p-3.5 bg-white/60 rounded-lg border border-teal-200 shadow-inner">
                                 <span className="text-[10px] font-extrabold text-teal-600 uppercase tracking-widest block mb-2">{t.governingEquation}</span>
                                 <div className="font-mono text-[13px] text-teal-900 math-font whitespace-pre-wrap leading-relaxed">
                                     {CONTROLLER_CONFIGS[method].eq}
                                 </div>
                             </div>
-                            
+
                             <div className="p-3.5 bg-amber-50/80 rounded-lg border border-amber-200">
                                 <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest block mb-2 flex items-center gap-1">💡 {t.tuningGuide}</span>
                                 <div className="text-xs font-medium text-amber-900 leading-relaxed text-justify">
                                     {CONTROLLER_CONFIGS[method].tuning}
                                 </div>
                             </div>
+
+                            {CONTROLLER_CONFIGS[method].detail && (
+                                <details className="rounded-lg border border-sky-200 bg-sky-50/80 p-3.5">
+                                    <summary className="flex cursor-pointer items-center justify-between gap-3 text-[10px] font-extrabold uppercase tracking-widest text-sky-700">
+                                        <span>{t.mechanismDetail}</span>
+                                        <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-sky-700">+</span>
+                                    </summary>
+                                    <div className="mt-3 whitespace-pre-wrap text-xs font-medium leading-relaxed text-sky-950">
+                                        {CONTROLLER_CONFIGS[method].detail}
+                                    </div>
+                                </details>
+                            )}
                         </div>
 
                         {/* 核心算法参数调节 */}
@@ -1108,8 +1184,8 @@ export default function ControlSimulator() {
                                             <label className="text-xs font-bold text-slate-500 group-hover:text-teal-600 transition-colors">{key.toUpperCase()}</label>
                                             <span className="text-[10px] font-mono font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">{ctrlParams[key].toFixed(2)}</span>
                                         </div>
-                                        <input 
-                                            type="range" min={min} max={max} step={step} value={ctrlParams[key]} 
+                                        <input
+                                            type="range" min={min} max={max} step={step} value={ctrlParams[key]}
                                             onChange={(e) => handleParamChange(key, e.target.value, false)}
                                             className="w-full accent-teal-500"
                                         />
@@ -1140,26 +1216,32 @@ export default function ControlSimulator() {
                             <div className="px-4 py-1.5 flex justify-between items-center shrink-0">
                                 <span className="font-bold text-teal-700 tracking-wide">{t.timeSeriesObserver}</span>
                             </div>
-                            
-                            <div className="flex flex-row flex-1 gap-3 overflow-hidden px-2 pb-2">
-                                <div className="relative w-1/2 h-full bg-[#FDFBF7] rounded-lg border border-slate-200 flex flex-col overflow-hidden shadow-inner">
+
+                            <div className="grid flex-1 grid-cols-3 gap-3 overflow-hidden px-2 pb-2">
+                                <div className="relative h-full min-w-0 bg-[#FDFBF7] rounded-lg border border-slate-200 flex flex-col overflow-hidden shadow-inner">
                                     <div className="absolute top-2 left-3 text-[10px] text-slate-600 font-bold z-10 bg-white/80 backdrop-blur px-2 py-1 rounded border border-slate-200">{t.positionPlot}</div>
                                     <canvas ref={posChartCanvasRef} width={600} height={300} className="w-full h-full object-fill block" />
                                 </div>
 
-                                <div className="relative w-1/2 h-full bg-[#FDFBF7] rounded-lg border border-slate-200 flex flex-col overflow-hidden shadow-inner">
+                                <div className="relative h-full min-w-0 bg-[#FDFBF7] rounded-lg border border-slate-200 flex flex-col overflow-hidden shadow-inner">
                                      <div className="absolute top-2 left-3 text-[10px] text-slate-600 font-bold z-10 bg-white/80 backdrop-blur px-2 py-1 rounded border border-slate-200">{t.controlInputPlot}</div>
                                     <canvas ref={ctrlChartCanvasRef} width={600} height={300} className="w-full h-full object-fill block" />
                                 </div>
+
+                                <div className="relative h-full min-w-0 bg-[#FDFBF7] rounded-lg border border-slate-200 flex flex-col overflow-hidden shadow-inner">
+                                     <div className="absolute top-2 left-3 text-[10px] text-slate-600 font-bold z-10 bg-white/80 backdrop-blur px-2 py-1 rounded border border-slate-200">{t.phasePortraitPlot}</div>
+                                    <canvas ref={phaseChartCanvasRef} width={600} height={300} className="w-full h-full object-fill block" />
+                                </div>
                             </div>
 
-                            <div className="flex justify-center gap-8 py-1.5 text-xs font-bold text-slate-600 shrink-0 bg-white/60 rounded-lg mx-2 mb-1 border border-slate-200">
+                            <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 py-1.5 text-xs font-bold text-slate-600 shrink-0 bg-white/60 rounded-lg mx-2 mb-1 border border-slate-200">
                                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#3b82f6] rounded-[4px] shadow-sm"></span> {t.actualPosition}</span>
                                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#10B981] rounded-[4px] shadow-sm"></span> {t.targetCommand}</span>
-                                {shouldShowReference(method) && 
+                                {shouldShowReference(method) &&
                                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 border-2 border-[#8b5cf6] border-dashed rounded-[4px]"></span> {t.auxiliaryReference}</span>
                                 }
                                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#ef4444] rounded-[4px] shadow-sm"></span> {t.actuatorOutput}</span>
+                                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-[#0f766e] rounded-full shadow-sm"></span> {t.phaseTrajectory}</span>
                             </div>
                         </div>
                     </div>
@@ -1191,7 +1273,7 @@ export default function ControlSimulator() {
                                 <p className="text-xs font-medium leading-relaxed text-slate-500">{t.languageHint}</p>
                             </div>
                         </div>
-                        
+
                         {/* 目标轨迹与外部环境 */}
                         <div className="glass-panel rounded-xl p-5">
                             <h3 className="text-xs font-extrabold text-blue-600 uppercase tracking-widest mb-5 flex items-center gap-2 border-l-2 border-blue-600 pl-2">🎯 {t.environmentSection}</h3>
@@ -1200,8 +1282,8 @@ export default function ControlSimulator() {
                                     <div className="flex justify-between mb-2 items-end">
                                         <label className="text-xs font-bold text-slate-500">{t.targetMode}</label>
                                     </div>
-                                    <select 
-                                        value={targetMode} 
+                                    <select
+                                        value={targetMode}
                                         onChange={(e) => { setTargetMode(e.target.value); resetSim(); }}
                                         className="w-full bg-white border border-blue-200 text-blue-700 font-bold text-xs rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                                     >
@@ -1286,8 +1368,8 @@ export default function ControlSimulator() {
                                         <label className="text-xs font-bold text-slate-500 group-hover:text-emerald-600 transition-colors">{p.name}</label>
                                         <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">{physParams[p.key]}{p.unit}</span>
                                     </div>
-                                    <input 
-                                        type="range" min={p.min} max={p.max} step={p.step} value={physParams[p.key]} 
+                                    <input
+                                        type="range" min={p.min} max={p.max} step={p.step} value={physParams[p.key]}
                                         onChange={(e) => handleParamChange(p.key, e.target.value, true)}
                                         className="w-full accent-emerald-500"
                                     />
@@ -1299,6 +1381,45 @@ export default function ControlSimulator() {
                     </div>
                     </div>
                 </div>
+                {showDictionary && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+                        <div className="modal-animate flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/80 bg-[#FDFBF7] shadow-2xl">
+                            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-6 py-5">
+                                <div>
+                                    <h2 className="flex items-center gap-2 text-2xl font-black text-teal-900">
+                                        <BookIcon size={26}/> {t.symbolDictionary}
+                                    </h2>
+                                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-relaxed text-slate-600">{t.dictionaryIntro}</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowDictionary(false)}
+                                    aria-label={t.closeDictionary}
+                                    className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm transition-all hover:border-rose-300 hover:text-rose-600"
+                                >
+                                    <CloseIcon size={20}/>
+                                </button>
+                            </div>
+                            <div className="tech-scroll grid gap-4 overflow-y-auto p-6 md:grid-cols-2">
+                                {DICTIONARY_DATA.map(group => (
+                                    <section key={group.category} className={`rounded-2xl border border-white/80 ${group.bg} p-4 shadow-sm`}>
+                                        <h3 className={`mb-3 text-sm font-black ${group.color}`}>{group.category}</h3>
+                                        <div className="space-y-3">
+                                            {group.items.map(item => (
+                                                <div key={`${group.category}-${item.sym}`} className="rounded-xl border border-white/70 bg-white/75 p-3">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="rounded-lg bg-slate-900 px-2 py-1 font-mono text-xs font-black text-white">{item.sym}</span>
+                                                        <span className="text-sm font-extrabold text-slate-800">{item.name}</span>
+                                                    </div>
+                                                    <p className="mt-2 text-xs font-medium leading-relaxed text-slate-600">{item.desc}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
                 </div>
             );
         }

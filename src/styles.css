@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 /* 经典护眼绿豆沙背景 */
-        body { background-color: #C7EDCC; } 
-        
+        body { background-color: #C7EDCC; }
+
         /* 柔和定制滚动条 */
         .tech-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .tech-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.4); border-radius: 4px; }
         .tech-scroll::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.3); border-radius: 4px; }
         .tech-scroll::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.6); }
-        
+
         .math-font { font-family: "Cambria Math", "Times New Roman", serif; font-style: italic; }
-        
+
         /* 柔和圆润滑块 */
         input[type=range] {
             -webkit-appearance: none;
@@ -36,13 +36,13 @@
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
         }
         input[type=range]:focus { outline: none; }
-        
+
         /* 下拉菜单柔和重置 */
         select option, select optgroup {
             background-color: #ffffff;
             color: #334155;
         }
-        
+
         /* 柔和高透玻璃面板 */
         .glass-panel {
             background: rgba(255, 255, 255, 0.65);
@@ -52,3 +52,25 @@
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
         }
 
+        details > summary {
+            list-style: none;
+        }
+
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-animate {
+            animation: modalFadeIn 180ms ease-out;
+        }
